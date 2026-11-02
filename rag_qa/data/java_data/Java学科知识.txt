@@ -1,0 +1,97 @@
+# Java 学科知识手册
+
+## 1. JVM 运行时内存区域
+
+JVM 运行时数据区分为线程私有与线程共享两部分。线程私有的包括程序计数器、虚拟机栈、本地方法栈；线程共享的包括堆和方法区（JDK 8 之后由元空间实现，使用本地内存）。
+
+程序计数器记录当前线程执行的字节码行号，是唯一不会抛 OutOfMemoryError 的区域。虚拟机栈以栈帧为单位存储局部变量表、操作数栈、动态链接、返回地址，方法调用即入栈，返回即出栈，递归过深会抛 StackOverflowError。
+
+堆是对象分配的主要区域，也是垃圾回收的主战场，分为新生代与老年代。方法区存储类元信息、常量、静态变量，JDK 8 用元空间替代永久代，避免了永久代容量难以预估的问题。
+
+## 2. 垃圾回收与收集器
+
+判断对象是否存活主流用可达性分析：从 GC Roots（虚拟机栈引用的对象、静态变量、常量、本地方法栈引用等）出发遍历引用链，不可达的对象才可回收。引用计数无法处理循环引用，Java 未采用。
+
+分代收集基于弱分代假说：绝大多数对象朝生夕灭。新生代用复制算法，因为存活对象少，复制成本低；老年代用标记整理或标记清除算法。
+
+常见收集器：Serial 单线程；ParNew 是 Serial 的多线程版；Parallel Scavenge 关注吞吐量；CMS 关注停顿时间，用标记清除，有碎片问题；G1 把堆划分为 Region，可预测停顿，JDK 9 起为默认；ZGC 与 Shenandoah 追求极低停顿，用染色指针与读屏障实现并发整理。
+
+## 3. 类加载机制
+
+类加载过程分为加载、验证、准备、解析、初始化五个阶段。准备阶段为静态变量分配内存并赋零值，初始化阶段才执行静态代码块与静态变量赋值。
+
+类加载器层次为：启动类加载器、扩展类加载器（JDK 9 后为平台类加载器）、应用类加载器、自定义类加载器。默认采用双亲委派模型：收到加载请求先交给父加载器，父加载器无法完成才自己加载。
+
+双亲委派保证核心类不被篡改，例如自定义的 java.lang.String 永远不会被加载。打破双亲委派的典型场景是 SPI 机制、Tomcat 的 Web 应用隔离、OSGi 模块化。
+
+## 4. String 与字符串常量池
+
+String 是不可变类，内部用 final 修饰的字符数组（JDK 9 后为 byte 数组加编码标志）存储。不可变带来三个好处：可以安全地被多线程共享、hashCode 可缓存、适合作为 HashMap 的键。
+
+字符串常量池在堆中，字面量 `"abc"` 会先查池，存在则复用，不存在则创建。`new String("abc")` 一定会创建新对象，可能同时复用池中的字面量。
+
+`==` 比较引用，`equals` 比较内容。字符串拼接在循环中应使用 StringBuilder，因为 String 的 `+` 每次都会创建新对象。`intern()` 可以把字符串放入常量池并返回池中引用。
+
+## 5. 集合框架
+
+Collection 分为 List、Set、Queue 三大分支，Map 独立成体系。List 有序可重复，常用 ArrayList（数组，随机访问快）与 LinkedList（双向链表，头尾增删快）。Set 不可重复，HashSet 基于 HashMap，TreeSet 基于红黑树且有序。
+
+Queue 中 PriorityQueue 用堆实现，适合取最值；Deque 用 ArrayDeque 实现栈和队列比 Stack 与 LinkedList 更高效。
+
+选型原则：查多改少用 ArrayList，频繁头尾操作用 ArrayDeque，需要去重用 HashSet，需要排序用 TreeSet 或 TreeMap，需要插入顺序用 LinkedHashMap。
+
+## 6. HashMap 的实现原理
+
+JDK 8 的 HashMap 是数组加链表加红黑树。数组长度默认 16，负载因子 0.75，元素数量超过阈值就扩容为两倍。下标通过 `(n - 1) & hash` 计算，要求容量是 2 的幂，这样位运算等价于取模且效率更高。
+
+哈希冲突时挂链表，链表长度达到 8 且数组容量不小于 64 时转为红黑树，退化为 6 时转回链表，避免频繁转换。扩容时元素要么留在原位置，要么移动到原位置加旧容量的位置，无需重新计算哈希。
+
+HashMap 线程不安全，并发扩容可能导致数据丢失或死循环（JDK 7 头插法）。并发场景用 ConcurrentHashMap，它用 CAS 加 synchronized 锁单个桶，JDK 8 后不再使用分段锁。
+
+## 7. 线程与线程池
+
+创建线程的方式有继承 Thread、实现 Runnable、实现 Callable 配合 FutureTask、使用线程池。生产环境应统一用线程池，避免频繁创建销毁线程。
+
+ThreadPoolExecutor 的核心参数：corePoolSize 核心线程数、maximumPoolSize 最大线程数、keepAliveTime 空闲存活时间、workQueue 任务队列、threadFactory 线程工厂、handler 拒绝策略。
+
+执行顺序是：核心线程未满则创建核心线程；核心线程满了进队列；队列满了且未达最大线程数则创建非核心线程；都满了执行拒绝策略。拒绝策略有 AbortPolicy 抛异常、CallerRunsPolicy 由提交线程执行、DiscardPolicy 静默丢弃、DiscardOldestPolicy 丢弃最老任务。
+
+## 8. synchronized 与 Lock
+
+synchronized 是 JVM 层面的内置锁，可修饰方法或代码块，自动加锁释放，不会死锁于忘记释放。JDK 6 之后做了锁升级优化：无锁、偏向锁、轻量级锁（CAS 自旋）、重量级锁，根据竞争程度逐步升级。
+
+Lock 是 JUC 提供的显式锁，必须在 finally 中释放。相比 synchronized 它支持可中断获取、超时获取、公平锁、多个条件变量（Condition）实现精确唤醒。
+
+选择建议：能用 synchronized 就用，代码简洁且不易出错；需要超时、可中断、公平性或读写分离时用 Lock 与 ReentrantReadWriteLock。
+
+## 9. volatile 与 Java 内存模型
+
+Java 内存模型规定每个线程有工作内存，共享变量在主内存，线程读写需经过工作内存，因此可能出现可见性问题。volatile 保证可见性与有序性，不保证原子性。
+
+可见性靠写操作后立即刷回主内存、读操作前从主内存刷新实现。有序性靠插入内存屏障禁止指令重排。典型用途是状态标志位与双重检查锁定的单例。
+
+`i++` 这类复合操作即使变量是 volatile 也不安全，因为它包含读、加、写三步。需要原子性应使用 AtomicInteger 等原子类，底层靠 CAS 自旋实现。
+
+## 10. 异常体系
+
+Throwable 分为 Error 与 Exception。Error 表示 JVM 层面的严重问题，如 OutOfMemoryError、StackOverflowError，程序通常无法处理。Exception 分为受检异常与运行时异常。
+
+受检异常必须显式捕获或声明抛出，如 IOException、SQLException，编译器强制检查。运行时异常如 NullPointerException、IndexOutOfBoundsException、IllegalArgumentException，通常由编程错误导致，不强制捕获。
+
+实践建议：不要捕获 Throwable；不要空 catch；自定义业务异常继承 RuntimeException 以免污染方法签名；用 try-with-resources 自动关闭资源；异常信息要包含上下文参数，便于排查。
+
+## 11. Spring 的 IOC 与 AOP
+
+IOC（控制反转）把对象的创建与依赖装配交给容器，开发者只需声明依赖。实现方式是依赖注入，包括构造器注入、setter 注入、字段注入。官方推荐构造器注入，因为它保证依赖不可变且便于单元测试。
+
+Bean 默认单例，作用域还有 prototype、request、session。生命周期包括实例化、属性填充、初始化前后处理、使用、销毁，可通过 `@PostConstruct` 与 `@PreDestroy` 挂钩子。
+
+AOP（面向切面编程）把日志、事务、权限等横切关注点从业务代码中抽离。核心概念有切面、切点、通知、连接点。Spring AOP 基于动态代理：目标类实现了接口用 JDK 动态代理，否则用 CGLIB 生成子类。因此同类内部方法调用不会触发切面，这是一个常见坑。
+
+## 12. JDK 新特性
+
+JDK 8 引入 Lambda 表达式、函数式接口、Stream API、Optional、新的日期时间 API、接口默认方法、Metaspace。Stream 支持链式处理集合，分为中间操作（filter、map、sorted，惰性）与终止操作（collect、forEach、reduce，触发执行）。
+
+JDK 9 引入模块化系统 JPMS、集合工厂方法 `List.of`。JDK 11 引入局部变量类型推断的增强、HttpClient 标准化。JDK 17 引入密封类、模式匹配 instanceof、record 预览。JDK 21 引入虚拟线程，由 JVM 调度，大幅降低高并发场景的线程成本。
+
+使用新特性时要注意团队与运行环境的版本约束，不要为了用而用。

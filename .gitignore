@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# 日志
+logs/
+*.log
+
+# 本地配置（含数据库密码，不入库；模板见 config.example.ini）
+base/config.ini
+
+# 模型权重（体积大，需自行下载）
+models/
+rag_qa/models/
+
+# 训练中间产物
+bert_results/
+bert_logs/
+
+# 系统文件
+.DS_Store
+Thumbs.db
