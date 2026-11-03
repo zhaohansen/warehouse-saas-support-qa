@@ -2,10 +2,11 @@
 
 from configparser import ConfigParser
 from pathlib import Path
+from urllib.parse import urlsplit
 import os
 
-config_file = Path(__file__).with_name("config.ini")
-parser = ConfigParser()
+config_file = Path(os.getenv("QA_CONFIG_PATH", str(Path(__file__).with_name("config.ini"))))
+parser = ConfigParser(interpolation=None)
 if not parser.read(config_file, encoding="utf-8"):
     raise FileNotFoundError(f"配置文件不存在: {config_file}")
 
@@ -42,23 +43,30 @@ class Config:
     sparse_weight = parser.getfloat("retrieval", "sparse_weight")
     nprobe = parser.getint("retrieval", "nprobe")
     min_score = parser.getfloat("retrieval", "min_score")
-    DASHSCOPE_API_KEY = parser.get(
-        "llm", "api_key", fallback=os.getenv("DASHSCOPE_API_KEY", "")
-    )
-    DASHSCOPE_BASE_URL = parser.get(
+    LLM_BASE_URL = parser.get(
         "llm",
         "base_url",
         fallback="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
+    if urlsplit(LLM_BASE_URL).hostname == "api.deepseek.com":
+        LLM_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    else:
+        LLM_API_KEY = os.getenv("DASHSCOPE_API_KEY", "").strip() or parser.get("llm", "api_key", fallback="").strip()
     LLM_MODEL = parser.get("llm", "model", fallback="qwen-plus")
     VALID_SOURCES = [
         item.strip()
         for item in parser.get("app", "valid_sources", fallback="ai").split(",")
         if item.strip()
     ]
-    CUSTOMER_SERVICE_PHONE = parser.get("app", "customer_service_phone", fallback="")
+    FAQ_THRESHOLD = parser.getfloat("app", "faq_threshold", fallback=0.85)
+    if not 0 <= FAQ_THRESHOLD <= 1:
+        raise ValueError("faq_threshold 必须在 0 到 1 之间")
     DATA_DIR = str((PROJECT_ROOT / data_dir).resolve())
-    MODELS_DIR = str((PROJECT_ROOT / "models").resolve())
+    MODELS_DIR = str((PROJECT_ROOT / "rag_qa" / "models").resolve())
+    HISTORY_PATH = str(PROJECT_ROOT / "storage" / "history.sqlite3")
+    MAX_OUTPUT_TOKENS = parser.getint("llm", "max_output_tokens", fallback=4096)
+    MAX_CONTEXT_CHARS = parser.getint("retrieval", "max_context_chars", fallback=12000)
+    MAX_HISTORY_CHARS = parser.getint("app", "max_history_chars", fallback=12000)
     MILVUS_HOST = milvus_host
     MILVUS_PORT = milvus_port
     MILVUS_DATABASE_NAME = milvus_database
@@ -68,6 +76,7 @@ class Config:
     CHUNK_OVERLAP = chunk_overlap
     BATCH_SIZE = batch_size
     RETRIEVAL_K = retrieval_k
+    RECALL_CANDIDATES = max(retrieval_k, min(100, parser.getint("retrieval", "recall_candidates", fallback=20)))
     CANDIDATE_M = candidate_m
     DENSE_WEIGHT = dense_weight
     SPARSE_WEIGHT = sparse_weight
@@ -78,6 +87,27 @@ class Config:
     EMBEDDING_USE_FP16 = embedding_use_fp16
     RERANKER_MODEL_PATH = reranker_model_path
     RERANKER_DEVICE = reranker_device
+
+
+def _validate_config():
+    positive = ('BATCH_SIZE', 'RETRIEVAL_K', 'CANDIDATE_M', 'NPROBE', 'MAX_OUTPUT_TOKENS',
+                'MAX_CONTEXT_CHARS', 'MAX_HISTORY_CHARS', 'PARENT_CHUNK_SIZE', 'CHILD_CHUNK_SIZE')
+    for name in positive:
+        if getattr(Config, name) <= 0:
+            raise ValueError(f'配置项 {name} 必须大于 0')
+    if Config.CHUNK_OVERLAP < 0 or Config.CHUNK_OVERLAP >= min(Config.PARENT_CHUNK_SIZE,
+                                                                Config.CHILD_CHUNK_SIZE):
+        raise ValueError('chunk_overlap 必须大于等于 0 且小于父块、子块长度')
+    if not 0 <= Config.MIN_SCORE <= 1:
+        raise ValueError('min_score 必须在 0 到 1 之间')
+    if Config.DENSE_WEIGHT < 0 or Config.SPARSE_WEIGHT < 0 or (
+            Config.DENSE_WEIGHT + Config.SPARSE_WEIGHT <= 0):
+        raise ValueError('检索权重不能为负，且不能同时为 0')
+    if not Config.VALID_SOURCES:
+        raise ValueError('valid_sources 至少配置一个学科')
+
+
+_validate_config()
 
 # 兼容两种用法: Config.xxx (类属性) 和 config.xxx (单例)
 config = Config()

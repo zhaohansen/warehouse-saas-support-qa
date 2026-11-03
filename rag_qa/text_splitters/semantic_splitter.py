@@ -1,11 +1,10 @@
 """基于模型的语义切分，依赖不可用时自动跳过。"""
 
-import warnings
-warnings.filterwarnings("ignore")
 from langchain_text_splitters import CharacterTextSplitter
 import re
 from typing import List
 from modelscope.pipelines import pipeline
+import torch
 
 
 class AliTextSplitter(CharacterTextSplitter):
@@ -16,13 +15,13 @@ class AliTextSplitter(CharacterTextSplitter):
     def split_text(self, text: str) -> List[str]:
         if self.pdf:
             text = re.sub(r"\n{3,}", r"\n", text)
-            text = re.sub('\s', " ", text)
+            text = re.sub(r'\s', " ", text)
             text = re.sub("\n\n", "", text)
         from base.config import Config
         p = pipeline(
             task="document-segmentation",
             model=f'{Config().MODELS_DIR}/nlp_bert_document-segmentation_chinese-base',
-            device="cpu")
+            device="gpu" if torch.cuda.is_available() else "cpu")
         result = p(documents=text)
         sent_list = [i for i in result["text"].split("\n\t") if i]
         return sent_list

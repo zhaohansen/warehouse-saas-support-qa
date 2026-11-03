@@ -1,0 +1,67 @@
+import os
+import sys
+import types
+import unittest
+from unittest.mock import patch
+
+# 接口测试无需加载 GPU、Milvus 或真实问答模型。
+pipeline = types.ModuleType('rag_qa.core.rag_pipeline')
+pipeline.RetrievalError = type('RetrievalError', (RuntimeError,), {})
+from fastapi.testclient import TestClient
+with patch.dict(sys.modules, {'rag_qa.core.rag_pipeline': pipeline}):
+    import app as web
+
+class FakeQA:
+    def __init__(self, ready=True):
+        self.vector_store = object() if ready else None
+        self.config = types.SimpleNamespace(VALID_SOURCES=['python'])
+    def list_sessions(self, limit): return []
+    def query(self, query, **kwargs):
+        yield '模拟回答', True
+    def close(self): pass
+
+class FakeImporter:
+    def delete_file(self, source, document_id):
+        if document_id == 'missing': raise FileNotFoundError('资料不存在')
+        return {'status': 'deleted'}
+    def list_documents(self, source): return [{'id': 'example', 'source': 'python'}]
+
+class WebTests(unittest.TestCase):
+    def make_client(self, ready=True):
+        env = patch.dict(os.environ, {'QA_ACCESS_TOKEN': 'test-token'})
+        env.start()
+        self.addCleanup(env.stop)
+        client = TestClient(web.create_app(qa_factory=lambda: FakeQA(ready),
+                                          importer_factory=lambda qa: FakeImporter()))
+        self.addCleanup(client.close)
+        client.__enter__()
+        self.addCleanup(client.__exit__, None, None, None)
+        client.headers['Authorization'] = 'Bearer test-token'
+        return client
+
+    def test_delete_reports_service_unavailable(self):
+        client = self.make_client(ready=False)
+        response = client.delete('/api/documents?source=python&document_id=example')
+        self.assertEqual(response.status_code, 503)
+
+    def test_delete_and_missing(self):
+        client = self.make_client()
+        self.assertEqual(client.delete('/api/documents?source=python&document_id=example').json()['status'], 'deleted')
+        self.assertEqual(client.delete('/api/documents?source=python&document_id=missing').status_code, 404)
+
+    def test_auth_and_cross_origin(self):
+        client = self.make_client()
+        self.assertEqual(client.get('/api/sources').json()['sources'], ['python'])
+        self.assertEqual(client.delete('/api/documents?source=python&document_id=example', headers={'Origin':'https://example.com'}).status_code, 403)
+        client.headers.pop('Authorization')
+        self.assertEqual(client.get('/api/sources').status_code, 401)
+
+    def test_websocket_query(self):
+        client = self.make_client()
+        with client.websocket_connect('/api/stream', headers={'Authorization': 'Bearer test-token'}) as socket:
+            socket.send_json({'query': '什么是决策树', 'source_filter': 'python'})
+            messages = [socket.receive_json(), socket.receive_json(), socket.receive_json()]
+        self.assertEqual([message['type'] for message in messages], ['start', 'token', 'end'])
+        self.assertEqual(messages[1]['token'], '模拟回答')
+
+if __name__ == '__main__': unittest.main()
