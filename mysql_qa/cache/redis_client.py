@@ -1,60 +1,57 @@
-"""Redis 缓存：缓存问题库与答案；连接不可用时降级为进程内字典。"""
-
-from base import Config, logger
-import redis
+"""Bounded cache with expiry and runtime Redis-to-memory fallback."""
 import json
-import pandas as pd
+import threading
+import time
+from collections import OrderedDict
+import redis
+from base import Config
+from base.logger import logger
 
 
-class RedisClient():
+class RedisClient:
     def __init__(self):
-        self.config = Config()
-        self.logger = logger
         self.client = None
-        self._memory = {}
+        self._memory = OrderedDict()
+        self._lock = threading.RLock()
+        config = Config()
         try:
-            self.client = redis.Redis(
-                host=self.config.redis_host,
-                port=self.config.redis_port,
-                db=self.config.redis_db,
-                password=self.config.redis_password,
-                decode_responses=True
-            )
+            self.client = redis.Redis(host=config.redis_host, port=config.redis_port, db=config.redis_db,
+                password=config.redis_password, decode_responses=True, socket_connect_timeout=2, socket_timeout=2)
             self.client.ping()
-            self.logger.info("Redis 连接成功")
-        except Exception as e:
+        except redis.RedisError:
             self.client = None
-            self.logger.warning(f"Redis 不可用，改用进程内缓存：{e}")
+            logger.warning('Redis 不可用，使用有容量限制的本地缓存')
 
-    def set_data(self, key, value):
-        try:
-            if self.client is None:
-                self._memory[key] = value
-                return
-            self.client.set(key, json.dumps(value, ensure_ascii=False))
-            self.logger.info("Redis 缓存写入成功")
-
-        except Exception as e:
-            self.logger.error(f"Redis 缓存写入失败：{e}")
+    def set_data(self, key, value, ttl=600):
+        with self._lock:
+            self._memory[key] = (time.monotonic() + ttl, value)
+            self._memory.move_to_end(key)
+            while len(self._memory) > 1000: self._memory.popitem(last=False)
+            if self.client is not None:
+                try: self.client.set(key, json.dumps(value, ensure_ascii=False), ex=ttl)
+                except redis.RedisError:
+                    self.client = None
+                    logger.warning('Redis 连接中断，已切换至本地缓存')
 
     def get_data(self, key):
-        try:
-            if self.client is None:
-                return self._memory.get(key)
-            result = self.client.get(key)
-            if result:
-                self.logger.info("Redis 缓存读取成功")
-                return json.loads(result)
-            else:
-                self.logger.info("Redis 中未找到对应缓存数据")
+        with self._lock:
+            if self.client is not None:
+                try:
+                    value = self.client.get(key)
+                    if value is not None: return json.loads(value)
+                except (redis.RedisError, ValueError, TypeError):
+                    self.client = None
+            record = self._memory.get(key)
+            if record is None: return None
+            expiry, value = record
+            if expiry <= time.monotonic():
+                del self._memory[key]
                 return None
-        except redis.RedisError as e:
-            self.logger.error(f"Redis 缓存读取失败：{e}")
-            return None
+            self._memory.move_to_end(key)
+            return value
 
     def get_answer(self, query):
-        key = f"answer:{query}"
-        return self.get_data(key)
+        return self.get_data('answer:' + query)
 
-if __name__ == "__main__":
-    client = RedisClient()
+    def close(self):
+        if self.client is not None: self.client.close()

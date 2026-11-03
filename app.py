@@ -1,258 +1,330 @@
-"""FastAPI 服务：提供 HTTP 与 WebSocket 接口，并挂载前端静态页。"""
-
-from fastapi import FastAPI, WebSocket, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from starlette.websockets import WebSocketDisconnect, WebSocketState
-
-import os
+"""Local-first web API with shared HTTP/WebSocket query flow and bounded uploads."""
+from contextlib import asynccontextmanager
+import hashlib
+import hmac
 import json
-import uuid
-import time
-import re
+import os
 from pathlib import Path
+import re
+import tempfile
+import time
 from typing import Optional
+import uuid
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, ValidationError, field_validator
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
+from base.logger import logger
+from rag_qa.core.document_importer import ImportValidationError
 
-from cli import IntegratedQASystem
-
-# 所有静态资源路径以 app.py 所在目录为基准，避免从其他工作目录启动时找不到文件。
-PROJECT_ROOT = Path(__file__).resolve().parent
-STATIC_DIR = PROJECT_ROOT / "static"
-app = FastAPI(title="学科知识问答系统 API", description="基于 FAQ 与 RAG 双通道的学科知识问答系统")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 静态目录不存在就先建出来, 否则下面 mount 会直接抛异常
-os.makedirs(STATIC_DIR, exist_ok=True)
-
-# 注意: 这一行在 import 时就会执行, 会加载 VectorStore(可能加载 embedding 模型), 启动会慢几秒
-qa_system = IntegratedQASystem()
-GREETING_PATTERNS = [
-    {"pattern": r"^(你好|您好|hi|hello)", "response": "你好！我是学科知识问答助手，很高兴为你服务！"},
-    {"pattern": r"^(你是谁|您是谁|你叫什么|你的名字|who are you)", "response": "我是学科知识问答助手，覆盖 Python、Java、AI、MySQL、Redis 五个学科。"},
-    {"pattern": r"^(在吗|在不在|有人吗)", "response": "我在！随时为你解答问题。"},
-    {"pattern": r"^(干嘛呢|你在干嘛|做什么)", "response": "我正在待命，有什么可以帮你的？"},
+ROOT = Path(__file__).resolve().parent
+LOCAL_HOSTS = {'127.0.0.1', '::1', 'localhost'}
+GREETINGS = [
+    (r'(你好|您好|hi|hello)[!！。,.，？?\s]*', '你好！我是你的学科知识助手。你可以直接提问，也可以先导入学习资料。'),
+    (r'(你是谁|您是谁|你叫什么|你的名字|who are you)[!！。,.，？?\s]*',
+     '我是学科知识助手，可以结合你的资料回答 Python、Java、AI、MySQL、Redis 相关问题。'),
+    (r'(在吗|在不在|有人吗)[!！。,.，？?\s]*', '我在，请告诉我你想了解什么。'),
 ]
 
 
-def check_greeting(query: str) -> Optional[str]:
-    """命中问候语就返回固定回复, 否则返回 None."""
-    text = (query or "").strip()
-    for item in GREETING_PATTERNS:
-        if re.match(item["pattern"], text, re.IGNORECASE):
-            return item["response"]
+def check_greeting(query):
+    for pattern, answer in GREETINGS:
+        if re.fullmatch(pattern, query.strip(), re.IGNORECASE): return answer
     return None
 
 
 class QueryRequest(BaseModel):
-    query: str
-    source_filter: Optional[str] = None
-    session_id: Optional[str] = None
+    query: str = Field(min_length=1, max_length=6000)
+    source_filter: Optional[str] = Field(default=None, max_length=50)
+    session_id: Optional[uuid.UUID] = None
+
+    @field_validator('query')
+    @classmethod
+    def strip_query(cls, value):
+        value = value.strip()
+        if not value: raise ValueError('问题不能为空')
+        return value
 
 
 class QueryResponse(BaseModel):
     answer: str
-    is_streaming: bool
+    is_streaming: bool = False
     session_id: str
     processing_time: float
-
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
-@app.get("/")
-async def read_root():
-    """
-    根路径: 有 static/index.html 就返回它, 没有就给一个内置的极简聊天页.
-    直接 FileResponse('static/index.html'), 文件不存在会 500 报错,
-             这里做了兜底, 克隆下来就能直接打开用.
-    """
-    index_path = STATIC_DIR / "index.html"
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return HTMLResponse(FALLBACK_PAGE)
+    sources: list = Field(default_factory=list)
 
 
-@app.post("/api/create_session")
-async def create_session():
-    """新建会话, 返回一个 session_id. 前端把它存起来, 之后每轮都带上, 才能连续对话."""
-    return {"session_id": str(uuid.uuid4())}
+def create_app(qa_factory=None, importer_factory=None):
+    access_token = os.getenv('QA_ACCESS_TOKEN', '')
 
+    def browser_cookie():
+        expiry = str(int(time.time()) + 86400)
+        return expiry + ':' + hmac.new(access_token.encode(), expiry.encode(), hashlib.sha256).hexdigest()
 
-@app.get("/api/history/{session_id}")
-async def get_history(session_id: str):
-    try:
-        history = qa_system.get_session_history(session_id)
-        return {"session_id": session_id, "history": history}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取历史记录失败: {e}")
+    def valid_cookie(value):
+        try:
+            expiry, digest = value.split(':', 1)
+            if int(expiry) <= time.time(): return False
+            expected = hmac.new(access_token.encode(), expiry.encode(), hashlib.sha256).hexdigest()
+            return hmac.compare_digest(digest, expected)
+        except (ValueError, TypeError):
+            return False
 
+    @asynccontextmanager
+    async def lifespan(application):
+        application.state.qa = None
+        application.state.importer = None
+        try:
+            factory = qa_factory
+            if factory is None:
+                from cli import IntegratedQASystem
+                factory = IntegratedQASystem
+            qa = await run_in_threadpool(factory)
+            application.state.qa = qa
+            if getattr(qa, 'vector_store', None) is not None:
+                if importer_factory is not None:
+                    application.state.importer = importer_factory(qa)
+                else:
+                    from rag_qa.core.document_importer import DocumentImporter
+                    from rag_qa.core.document_processor import process_document_file
+                    application.state.importer = DocumentImporter(qa.config.DATA_DIR, qa.config.VALID_SOURCES,
+                                                                  qa.vector_store, process_document_file,
+                                                                  batch_size=qa.config.BATCH_SIZE)
+        except Exception:
+            logger.exception('问答服务初始化失败')
+        try:
+            yield
+        finally:
+            qa = application.state.qa
+            if qa is not None and hasattr(qa, 'close'):
+                await run_in_threadpool(qa.close)
 
-@app.delete("/api/history/{session_id}")
-async def clear_history(session_id: str):
-    if qa_system.clear_session_history(session_id):
-        return {"status": "success", "message": "历史记录已清除"}
-    raise HTTPException(status_code=500, detail="清除历史记录失败")
+    app = FastAPI(title='知序 · 学科知识助手', lifespan=lifespan)
 
+    def allowed(connection):
+        if access_token:
+            bearer = connection.headers.get('authorization', '')
+            return (valid_cookie(connection.cookies.get('qa_auth', ''))
+                    or hmac.compare_digest(bearer.encode(), ('Bearer ' + access_token).encode()))
+        return (connection.client is not None and connection.client.host in LOCAL_HOSTS
+                and connection.url.hostname in LOCAL_HOSTS)
 
-@app.get("/api/sources")
-async def get_sources():
-    """返回前端下拉框要用的学科列表."""
-    return {"sources": qa_system.config.VALID_SOURCES}
+    def same_origin(connection):
+        origin = connection.headers.get('origin')
+        if not origin:
+            return True
 
+        def normalized(value):
+            parsed = urlsplit(value)
+            scheme = {'ws': 'http', 'wss': 'https'}.get(parsed.scheme, parsed.scheme)
+            if scheme not in ('http', 'https') or not parsed.hostname:
+                raise ValueError('Invalid origin')
+            if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ('', '/'):
+                raise ValueError('Invalid origin')
+            return scheme, parsed.hostname.lower(), parsed.port or (443 if scheme == 'https' else 80)
 
-@app.get("/health")
-async def health_check():
-    """健康检查: 只要返回 200, 就说明服务活着."""
-    return {"status": "healthy"}
+        try:
+            return normalized(origin) == normalized(str(connection.url.replace(path='', query='', fragment='')))
+        except ValueError:
+            return False
 
+    @app.middleware('http')
+    async def access_control(request, call_next):
+        if request.url.path.startswith('/api/'):
+            if request.method not in ('GET', 'HEAD', 'OPTIONS') and not same_origin(request):
+                return JSONResponse({'detail': '请从本服务页面进行操作'}, status_code=403)
+            public = request.url.path in ('/api/auth/status', '/api/auth/login')
+            if not public and not allowed(request):
+                return JSONResponse(
+                    {'detail': '请先验证访问口令' if access_token else '远程访问需设置 QA_ACCESS_TOKEN'},
+                    status_code=401 if access_token else 403)
+        return await call_next(request)
 
-@app.post("/api/query")
-async def query(request: QueryRequest):
-    """
-    一次性返回完整答案(不流式).
-    这个接口只在"MySQL 能直接命中"时好用; 需要 RAG 生成时, 它会告诉前端去走 WebSocket.
-    """
-    start = time.time()
-    session_id = request.session_id or str(uuid.uuid4())
-    greeting = check_greeting(request.query)
-    if greeting:
-        return QueryResponse(
-            answer=greeting,
-            is_streaming=False,
-            session_id=session_id,
-            processing_time=time.time() - start,
-        )
+    def service():
+        qa = getattr(app.state, 'qa', None)
+        if qa is None: raise HTTPException(503, '服务尚未就绪，请检查配置和启动日志')
+        return qa
 
-    answer = qa_system.bm25_search.search(request.query, threshold=0.85)
-    need_rag = answer is None
+    def importer():
+        value = getattr(app.state, 'importer', None)
+        if value is None: raise HTTPException(503, '资料导入尚未就绪，请确认本地模型和向量库可用')
+        return value
 
-    if need_rag:
-        return QueryResponse(
-            answer="请使用 WebSocket 接口(/api/stream)获取流式响应",
-            is_streaming=True,
-            session_id=session_id,
-            processing_time=time.time() - start,
-        )
+    def validate_subject(qa, source):
+        if source and source not in qa.config.VALID_SOURCES: raise HTTPException(422, '请选择有效的学科')
 
-    return QueryResponse(
-        answer=answer,
-        is_streaming=False,
-        session_id=session_id,
-        processing_time=time.time() - start,
-    )
+    @app.get('/')
+    async def index():
+        return FileResponse(ROOT / 'static' / 'index.html', headers={'Cache-Control': 'no-cache'})
 
+    @app.get('/api/auth/status')
+    async def auth_status(request: Request):
+        return {'required': bool(access_token), 'authenticated': allowed(request),
+                'remote_disabled': not access_token and not allowed(request)}
 
-@app.websocket("/api/stream")
-async def websocket_endpoint(websocket: WebSocket):
-    """
-    前端连上来之后, 发一条 {query, source_filter, session_id} 的 JSON,
-    服务端按 type=start / token / end 三种消息往回推.
-    消息协议:
-        {"type": "start", "session_id": "..."}
-        {"type": "token", "token": "一小段文字", "session_id": "..."}
-        {"type": "end",   "is_complete": true, "processing_time": 1.23}
-        {"type": "error", "error": "错误信息"}
-    """
-    await websocket.accept()
-    try:
-        while True:
+    @app.post('/api/auth/login')
+    async def login(request: Request):
+        try:
+            body = await request.json()
+        except (ValueError, TypeError):
+            raise HTTPException(400, '请输入有效口令')
+        supplied = body.get('token') if isinstance(body, dict) else None
+        if not access_token or not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(),
+                                                                                        access_token.encode()):
+            raise HTTPException(401, '访问口令不正确')
+        response = JSONResponse({'authenticated': True})
+        response.set_cookie('qa_auth', browser_cookie(), httponly=True, secure=request.url.scheme == 'https',
+                            samesite='strict', max_age=86400)
+        return response
+
+    @app.get('/health')
+    async def health():
+        qa = getattr(app.state, 'qa', None)
+        ready = qa is not None
+        return JSONResponse({'status': 'ready' if ready else 'unavailable', 'ready': ready,
+                             'retrieval_ready': ready and getattr(qa, 'vector_store', None) is not None},
+                            status_code=200 if ready else 503)
+
+    @app.post('/api/create_session')
+    async def create_session():
+        return {'session_id': str(uuid.uuid4())}
+
+    @app.get('/api/sessions')
+    async def sessions(limit: int = 100):
+        return {'sessions': await run_in_threadpool(service().list_sessions, max(1, min(limit, 200)))}
+
+    @app.get('/api/history/{session_id}')
+    async def history(session_id: uuid.UUID, limit: int = 500):
+        return {'session_id': str(session_id),
+                'history': await run_in_threadpool(service().get_session_history, str(session_id),
+                                                   max(1, min(limit, 500)))}
+
+    @app.delete('/api/history/{session_id}')
+    async def clear_history(session_id: uuid.UUID):
+        await run_in_threadpool(service().clear_session_history, str(session_id))
+        return {'status': 'success'}
+
+    @app.get('/api/sources')
+    async def sources():
+        return {'sources': service().config.VALID_SOURCES}
+
+    @app.get('/api/documents')
+    async def documents(source: Optional[str] = None):
+        validate_subject(service(), source)
+        return {'documents': await run_in_threadpool(importer().list_documents, source)}
+
+    @app.post('/api/documents')
+    async def import_document(request: Request, source: str, filename: str):
+        target = importer()
+        try:
+            extension = target.validate(source, filename)
+        except ImportValidationError as exc:
+            raise HTTPException(400, str(exc))
+        with tempfile.TemporaryDirectory(prefix='qa-document-') as temporary:
+            path = Path(temporary) / ('upload' + extension)
+            size = 0
+            with path.open('wb') as stream:
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > target.MAX_BYTES: raise HTTPException(413, '文件不能超过 20 MB')
+                    await run_in_threadpool(stream.write, chunk)
+            if not size: raise HTTPException(400, '不能上传空文件')
+            try:
+                return await run_in_threadpool(target.import_file, path, source, filename)
+            except ImportValidationError as exc:
+                raise HTTPException(422, str(exc))
+            except Exception:
+                logger.exception('资料导入失败')
+                raise HTTPException(500, '资料导入失败，请检查文件和向量库服务后重试')
+
+    def fixed_answer(qa, question, sid):
+        answer = check_greeting(question)
+        if answer: qa.update_session_history(sid, question, answer)
+        return answer
+
+    @app.post('/api/query', response_model=QueryResponse)
+    async def query(request: QueryRequest):
+        qa = service();
+        validate_subject(qa, request.source_filter)
+        sid = str(request.session_id or uuid.uuid4());
+        start = time.monotonic();
+        source_items = []
+
+        def execute():
+            answer = fixed_answer(qa, request.query, sid)
+            if answer: return answer
+            return ''.join(token for token, complete in qa.query(request.query, source_filter=request.source_filter,
+                                                                 session_id=sid,
+                                                                 source_callback=lambda values: source_items.extend(
+                                                                     values)))
+
+        try:
+            answer = await run_in_threadpool(execute)
+        except Exception:
+            logger.exception('问答失败')
+            raise HTTPException(502, '回答生成失败，请检查模型配置或稍后重试')
+        return QueryResponse(answer=answer, session_id=sid, processing_time=time.monotonic() - start,
+                             sources=source_items)
+
+    @app.websocket('/api/stream')
+    async def stream(websocket: WebSocket):
+        if not allowed(websocket) or not same_origin(websocket):
+            await websocket.close(code=1008);
+            return
+        await websocket.accept()
+        generator = None
+        try:
             raw = await websocket.receive_text()
-            data = json.loads(raw)
-            query_text = data.get("query", "")
-            source_filter = data.get("source_filter")
-            session_id = data.get("session_id") or str(uuid.uuid4())
-            start = time.time()
-            await websocket.send_json({"type": "start", "session_id": session_id})
-            greeting = check_greeting(query_text)
+            if len(raw) > 16000: raise ValueError('问题过长')
+            request = QueryRequest.model_validate(json.loads(raw))
+            qa = service();
+            validate_subject(qa, request.source_filter)
+            sid = str(request.session_id or uuid.uuid4());
+            start = time.monotonic();
+            source_items = []
+            await websocket.send_json({'type': 'start', 'session_id': sid})
+            greeting = await run_in_threadpool(fixed_answer, qa, request.query, sid)
             if greeting:
-                await websocket.send_json(
-                    {"type": "token", "token": greeting, "session_id": session_id}
-                )
-                await websocket.send_json(
-                    {
-                        "type": "end",
-                        "is_complete": True,
-                        "processing_time": time.time() - start,
-                    }
-                )
-                continue
+                await websocket.send_json({'type': 'token', 'token': greeting})
+            else:
+                generator = qa.query(request.query, source_filter=request.source_filter, session_id=sid,
+                                     source_callback=lambda values: source_items.extend(values))
+                async for token, complete in iterate_in_threadpool(generator):
+                    if token: await websocket.send_json({'type': 'token', 'token': token})
+                    if complete: break
+            await websocket.send_json({'type': 'end', 'is_complete': True, 'processing_time': time.monotonic() - start,
+                                       'sources': source_items})
+        except WebSocketDisconnect:
+            pass
+        except (ValidationError, ValueError, HTTPException):
+            await websocket.send_json({'type': 'error', 'error': '请求无效，请检查问题内容和学科选择'})
+        except Exception:
+            logger.exception('流式问答失败')
+            try:
+                await websocket.send_json({'type': 'error',
+                                           'error': '回答生成失败，请检查模型配置或稍后重试。已生成的部分不会作为完整回答保存。'})
+            except (RuntimeError, WebSocketDisconnect):
+                pass
+        finally:
+            if generator is not None:
+                try:
+                    await run_in_threadpool(generator.close)
+                except (RuntimeError, ValueError):
+                    pass
+            try:
+                await websocket.close()
+            except (RuntimeError, WebSocketDisconnect):
+                pass
 
-            collected = ""
-            for token, is_complete in qa_system.query(
-                query_text, source_filter=source_filter, session_id=session_id
-            ):
-                collected += token
-                if token and websocket.client_state == WebSocketState.CONNECTED:
-                    await websocket.send_json(
-                        {"type": "token", "token": token, "session_id": session_id}
-                    )
-                if is_complete:
-                    await websocket.send_json(
-                        {
-                            "type": "end",
-                            "is_complete": True,
-                            "processing_time": time.time() - start,
-                        }
-                    )
-                    break
+    app.mount('/static', StaticFiles(directory=str(ROOT / 'static')), name='static')
+    return app
 
-    except WebSocketDisconnect as e:
-        print(f"WebSocket 断开: code={e.code}, reason={e.reason}")
-    except Exception as e:
-        print(f"WebSocket 异常: {e}")
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.send_json({"type": "error", "error": str(e)})
-    finally:
-        if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.close()
 
-FALLBACK_PAGE = """<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>学科知识问答系统</title>
-<style>
- body{font-family:system-ui,"Microsoft YaHei";max-width:780px;margin:40px auto;padding:0 16px;color:#222}
- #log{border:1px solid #e3e3e3;border-radius:8px;padding:12px;height:420px;overflow:auto;background:#fafafa}
- .q{color:#0b6bcb;margin:10px 0 4px}
- .a{white-space:pre-wrap;margin:0 0 14px}
- .row{display:flex;gap:8px;margin-top:12px}
- input{flex:1;padding:9px 12px;border:1px solid #d5d5d5;border-radius:6px;font-size:14px}
- button{padding:9px 18px;border:0;border-radius:6px;background:#0b6bcb;color:#fff;cursor:pointer}
-</style></head><body>
-<h3>学科知识问答系统</h3>
-<div id="log"></div>
-<div class="row"><input id="q" placeholder="输入问题后回车..."><button onclick="send()">发送</button></div>
-<script>
-let sid = null;
-const log = document.getElementById('log');
-function add(cls, txt){const d=document.createElement('div');d.className=cls;d.textContent=txt;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
-async function init(){const r=await fetch('/api/create_session',{method:'POST'});sid=(await r.json()).session_id;}
-async function send(){
-  const inp=document.getElementById('q'); const q=inp.value.trim(); if(!q) return; inp.value='';
-  add('q','我：'+q); const node=add('a','AI：');
-  const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/stream');
-  ws.onopen=()=>ws.send(JSON.stringify({query:q,session_id:sid}));
-  ws.onmessage=(e)=>{const m=JSON.parse(e.data);
-    if(m.type==='token') node.textContent+=m.token;
-    if(m.type==='end'){ws.close();}
-    if(m.type==='error') node.textContent+='[错误] '+m.error;
-  };
-}
-init();
-document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
-</script></body></html>
-"""
-
-if __name__ == "__main__":
+app = create_app()
+if __name__ == '__main__':
     import uvicorn
 
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8082))
-    uvicorn.run("app:app", host=host, port=port, reload=False)
+    uvicorn.run(app, host=os.getenv('HOST', '127.0.0.1'), port=int(os.getenv('PORT', 8081)), reload=False)

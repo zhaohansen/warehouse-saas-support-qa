@@ -23,8 +23,8 @@ class QueryClassifier:
             os.path.normpath(os.path.join(current_dir, model_path))
             if not os.path.isabs(model_path) else model_path
         )
-        bert_path = os.path.join(rag_qa_path, 'models', 'bert-base-chinese')
-        self.tokenizer = BertTokenizer.from_pretrained(bert_path)
+        self.bert_path = os.path.join(rag_qa_path, 'models', 'bert-base-chinese')
+        self.tokenizer = None
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f'使用设备: {self.device}')
@@ -36,17 +36,18 @@ class QueryClassifier:
         函数功能: 加载模型, 优先从self.model_path加载, 不存在则初始化基于 bert-base-chinese的新模型
         :return:
         """
-        if os.path.exists(self.model_path):
-            self.model = BertForSequenceClassification.from_pretrained(self.model_path)
+        if not os.path.exists(os.path.join(self.model_path, "config.json")):
+            logger.warning("分类模型未安装，默认检索知识库；不会使用未经训练的分类头")
+            return
+        try:
+            tokenizer_path = self.model_path if os.path.exists(os.path.join(self.model_path, 'vocab.txt')) else self.bert_path
+            self.tokenizer = BertTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+            self.model = BertForSequenceClassification.from_pretrained(self.model_path, local_files_only=True)
             self.model.to(self.device)
             self.model.eval()
-            logger.info(f"加载模型: {self.model_path}")
-        else:
-            self.model = BertForSequenceClassification.from_pretrained(bert_path, num_labels=2)
-            self.model.to(self.device)
-            # 新建模型也切换到推理模式，避免预测时启用 Dropout。
-            self.model.eval()
-            logger.info("初始化新 BERT 模型")
+        except (OSError, RuntimeError, ValueError):
+            logger.exception("分类模型加载失败，使用检索兜底")
+            self.model = None
 
     def save_model(self):
         self.model.save_pretrained(self.model_path)
@@ -86,18 +87,28 @@ class QueryClassifier:
 
         return Dataset(encodings, labels)
 
-    def train_model(self, data_file="training_dataset_hybrid_5000.json"):
+    def train_model(self, data_file=None):
         """
         函数功能: 训练BERT分类模型, 区分查询分类为'通用知识' 和 '专业咨询'
         :param data_file: 数据集文件路径.
         :return: 无
         """
+        data_file = data_file or os.path.join(rag_qa_path, 'classify_data', 'model_generic_5000.json')
+        if self.model is None:
+            self.tokenizer = BertTokenizer.from_pretrained(self.bert_path, local_files_only=True)
+            self.model = BertForSequenceClassification.from_pretrained(self.bert_path, num_labels=2, local_files_only=True)
+            self.model.to(self.device)
         if not os.path.exists(data_file):
             logger.error(f"数据集文件 {data_file} 不存在")
             raise FileNotFoundError(f"数据集文件 {data_file} 不存在")
 
         with open(data_file, "r", encoding="utf-8") as f:
-            data = [json.loads(value) for value in f.readlines()]
+            raw = f.read()
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict): data = [data]
+            except json.JSONDecodeError:
+                data = [json.loads(value) for value in raw.splitlines() if value.strip()]
         texts = [item["query"] for item in data]
         labels = [item["label"] for item in data]
 
@@ -181,8 +192,8 @@ class QueryClassifier:
         :return: 类别名称(文本标签)
         """
         if self.model is None:
-            logger.error("模型未训练或加载!")
-            return '通用知识'
+            logger.debug("分类模型不可用，默认检索")
+            return '专业咨询'
 
         encoding = self.tokenizer(
             query,

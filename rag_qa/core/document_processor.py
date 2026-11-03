@@ -1,6 +1,7 @@
 """文档处理：按扩展名选择加载器，切分为带父块信息的子块。"""
 
 import os
+from importlib import import_module
 import sys
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -12,28 +13,59 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(errors="replace")
 from langchain_community.document_loaders import TextLoader
-from langchain_community.document_loaders.markdown import UnstructuredMarkdownLoader
 from langchain_text_splitters import MarkdownTextSplitter
 from datetime import datetime
-from rag_qa.edu_text_splitter import ChineseRecursiveTextSplitter
-from rag_qa.edu_text_splitter import AliTextSplitter
+from rag_qa.text_splitters import ChineseRecursiveTextSplitter
 
-from rag_qa.edu_document_loaders import OCRPDFLoader, OCRDOCLoader, OCRPPTLoader, \
-    OCRIMGLoader
 from base.config import Config
 from base.logger import logger
 
 conf = Config()
 document_loaders = {
     ".txt": TextLoader,
-    ".pdf": OCRPDFLoader,
-    ".docx": OCRDOCLoader,
-    ".ppt": OCRPPTLoader,
-    ".pptx": OCRPPTLoader,
-    ".jpg": OCRIMGLoader,
-    ".png": OCRIMGLoader,
-    ".md": UnstructuredMarkdownLoader
+    ".pdf": ("rag_qa.document_loaders.pdf_loader", "OCRPDFLoader"),
+    ".docx": ("rag_qa.document_loaders.docx_loader", "OCRDOCLoader"),
+    ".pptx": ("rag_qa.document_loaders.ppt_loader", "OCRPPTLoader"),
+    ".jpg": ("rag_qa.document_loaders.image_loader", "OCRIMGLoader"),
+    ".png": ("rag_qa.document_loaders.image_loader", "OCRIMGLoader"),
+    ".md": TextLoader
 }
+
+
+def load_document_file(file_path, source):
+    """Load one file; propagate errors so a failed upload cannot report success."""
+    file_path = os.fspath(file_path)
+    extension = os.path.splitext(file_path)[1].lower()
+    if extension == ".ppt":
+        raise ValueError("旧版 .ppt 不受支持，请先另存为 .pptx")
+    if extension not in document_loaders:
+        raise ValueError("不支持的文件格式")
+    loader_class = document_loaders[extension]
+    if isinstance(loader_class, tuple):
+        module_name, class_name = loader_class
+        loader_class = getattr(import_module(module_name), class_name)
+    loader = (loader_class(file_path, encoding="utf-8")
+              if extension in (".txt", ".md") else loader_class(file_path))
+    documents = loader.load()
+    for doc in documents:
+        doc.metadata.update(source=source, file_path=file_path, filename=os.path.basename(file_path),
+                            timestamp=datetime.now().isoformat())
+    return documents
+
+
+def process_document_file(file_path, source):
+    from rag_qa.core.document_importer import ImportValidationError
+    try:
+        documents = load_document_file(file_path, source)
+    except (OSError, ValueError) as exc:
+        raise ImportValidationError("无法读取文件，请确认文件未加密、未损坏，并使用正确的格式") from exc
+    warnings = list(dict.fromkeys(w for doc in documents for w in doc.metadata.get('warnings', [])))
+    chunks = split_loaded_documents(documents)
+    if warnings and not chunks:
+        raise ImportValidationError("未提取到文字。" + " ".join(warnings))
+    for chunk in chunks:
+        chunk.metadata['warnings'] = warnings
+    return chunks
 
 
 def load_documents_from_directory(directory_path):
@@ -47,26 +79,18 @@ def load_documents_from_directory(directory_path):
     source = os.path.basename(directory_path).replace('_data', '')
     for root, _, files in os.walk(directory_path):
         for file in files:
+            if file.startswith("."):
+                continue
             file_path = os.path.join(root, file)
             file_extension = os.path.splitext(file)[1].lower()
 
             if file_extension in supported_extensions:
                 try:
-                    loader_class = document_loaders[file_extension]
-                    if file_extension == '.txt':
-                        loader = loader_class(file_path, encoding='utf-8')
-                    else:
-                        loader = loader_class(file_path)
-                    loaded_docs = loader.load()
-                    for doc in loaded_docs:
-                        doc.metadata["source"] = source
-                        doc.metadata["file_path"] = file_path
-                        doc.metadata["timestamp"] = datetime.now().isoformat()
-
+                    loaded_docs = load_document_file(file_path, source)
                     documents.extend(loaded_docs)
                     logger.info(f'成功加载文件: {file_path}')
-                except Exception as e:
-                    logger.error(f'加载文件 {file_path} 失败: {str(e)}')
+                except Exception:
+                    logger.exception(f'加载文件 {file_path} 失败')
             else:
                 logger.warning(f'不支持的文件类型: {file_path}')
 
@@ -88,6 +112,12 @@ def process_documents(directory_path, parent_chunk_size=conf.PARENT_CHUNK_SIZE,
 
     documents = load_documents_from_directory(directory_path)
     logger.info(f"加载的文档数量: {len(documents)}")
+    return split_loaded_documents(documents, parent_chunk_size, child_chunk_size, chunk_overlap)
+
+
+def split_loaded_documents(documents, parent_chunk_size=conf.PARENT_CHUNK_SIZE,
+                           child_chunk_size=conf.CHILD_CHUNK_SIZE,
+                           chunk_overlap=conf.CHUNK_OVERLAP):
     parent_splitter = ChineseRecursiveTextSplitter(chunk_size=parent_chunk_size, chunk_overlap=chunk_overlap)
     child_splitter = ChineseRecursiveTextSplitter(chunk_size=child_chunk_size, chunk_overlap=chunk_overlap)
     markdown_parent_splitter = MarkdownTextSplitter(chunk_size=parent_chunk_size, chunk_overlap=chunk_overlap)

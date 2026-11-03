@@ -1,11 +1,9 @@
-"""完整问答链路：意图分类 → 策略选择 → 检索 → 生成，支持多轮与流式。"""
+"""问答链路：本地检索优先，未命中时辅助分类与增强，支持多轮和流式。"""
 
 import sys, os
-import time
 from rag_qa.core.prompts import RAGPrompts
 from rag_qa.core.query_classifier import QueryClassifier
 from rag_qa.core.strategy_selector import StrategySelector
-from rag_qa.core.vector_store import VectorStore
 current_dir = os.path.dirname(os.path.abspath(__file__))
 rag_qa_path = os.path.dirname(current_dir)
 sys.path.insert(0, rag_qa_path)
@@ -14,9 +12,7 @@ sys.path.insert(0, project_root)
 from base.config import Config
 from base.logger import logger
 
-# 学科特征词: 命中即认定用户在问知识库里的专业内容.
-# 原因: BERT 分类器只在旧语料上训练过, 面对学科名/术语时容易误判成"通用知识",
-# 一旦误判就会跳过检索、直接让大模型凭记忆作答, 知识库等于没生效.
+# 这些词仅在原问题检索未命中后辅助选择增强策略，不能用于跳过首次检索。
 SUBJECT_HINTS = (
     "python", "java", "mysql", "redis", "sql", "jvm", "gil", "hashmap",
     "索引", "事务", "隔离级别", "mvcc", "锁", "主从", "分库", "分表",
@@ -37,13 +33,30 @@ def _looks_like_subject_query(query):
 
 # 注意: 这里不再在模块导入时加载 BERT 模型(原代码写死了另一台机器的绝对路径, 会直接报错),
 # 需要用到时在 QueryClassifier 内部按配置路径加载.
-from openai import OpenAI
 
 conf = Config()
 
 
+def _is_follow_up(query):
+    import re
+    text = re.sub(r'[\s？?！!。]', '', query).casefold()
+    return (text in {'继续', '然后呢', '为什么', '为什么呢', '为啥', '举例', '举个例子',
+                     '给个例子', '具体呢', '给代码', '怎么写', '怎么实现', 'python实现',
+                     '用python实现', '用python实现一下', 'java实现', '用java实现'}
+            or text.startswith(('那它', '那么它', '这个怎么', '它的', '它为什么', '刚才', '上面那个')))
+
+
+def _requires_local_evidence(query):
+    import re
+    return bool(re.search(
+        r'(?:根据|依据|按照|只用|仅用|只从).{0,12}(?:资料|文档|知识库|课件|pdf|ppt)'
+        r'|(?:这份|这个|该|我上传的|上传的).{0,8}(?:资料|文档|文件|课件|pdf|ppt)'
+        r'|你们|我们公司|本公司|本机构|内部政策|内部制度|学费|报名费用|开课时间|报销政策',
+        query, re.IGNORECASE))
+
+
 class RAGSystem:
-    def __init__(self, vector_store, llm):
+    def __init__(self, vector_store, llm, stream_llm=None):
         """
         函数作用: 初始化RAG系统
         :param vector_store: 向量数据库对象 -> 用于存储和检索文档, 提供相似性搜索功能.
@@ -51,6 +64,7 @@ class RAGSystem:
         """
         self.vector_store = vector_store
         self.llm = llm
+        self.stream_llm = stream_llm
         self.rag_prompt = RAGPrompts.rag_prompt()
         classifier_path = os.path.join(rag_qa_path, 'models', 'bert_query_classifier')
         self.query_classifier = QueryClassifier(classifier_path)
@@ -72,11 +86,11 @@ class RAGSystem:
             return self.vector_store.hybrid_search_with_rerank(
                 hypo_answer,
                 k=conf.RETRIEVAL_K,
-                source_filter=source_filter
+                source_filter=source_filter, rerank_query=query
             )
         except Exception as e:
             logger.error(f"HyDE 策略执行失败: {e}")
-            return []
+            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
 
     def _retrieve_with_subqueries(self, query, source_filter=None):
         """
@@ -89,11 +103,11 @@ class RAGSystem:
         subquery_prompt_template = RAGPrompts.subquery_prompt()
         try:
             subqueries_text = self.llm(subquery_prompt_template.format(query=query)).strip()
-            subqueries = [q.strip() for q in subqueries_text.split("\n") if q.strip()]
+            subqueries = [q.strip()[:500] for q in subqueries_text.split("\n") if q.strip()][:5]
             logger.info(f"生成的子查询: {subqueries}")
             if not subqueries:
                 logger.warning("未能生成有效的子查询")
-                return []
+                return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
 
             all_docs = []
             for sub_q in subqueries:
@@ -105,11 +119,11 @@ class RAGSystem:
             unique_docs_dict = {doc.page_content: doc for doc in all_docs}
             unique_docs = list(unique_docs_dict.values())
             logger.info(f"所有子查询共检索到 {len(all_docs)} 个文档, 去重后剩 {len(unique_docs)} 个")
-            return unique_docs
+            return self.vector_store.rerank_documents(query, unique_docs)
 
         except Exception as e:
             logger.error(f"子查询策略执行失败: {e}")
-            return []
+            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
 
     def _retrieve_with_backtracking(self, query, source_filter=None):
         logger.info(f"使用回溯问题策略进行检索 (查询: '{query}')")
@@ -118,11 +132,11 @@ class RAGSystem:
             simplified_query = self.llm(backtrack_prompt_template.format(query=query)).strip()
             logger.info(f"生成的回溯问题: '{simplified_query}'")
             return self.vector_store.hybrid_search_with_rerank(
-                simplified_query, k=conf.RETRIEVAL_K, source_filter=source_filter
+                simplified_query, k=conf.RETRIEVAL_K, source_filter=source_filter, rerank_query=query
             )
         except Exception as e:
             logger.error(f"回溯问题策略执行失败: {e}")
-            return []
+            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
     def retrieve_and_merge(self, query, source_filter=None, strategy=None):
 
         """
@@ -133,7 +147,27 @@ class RAGSystem:
         :return: list[Document]
         """
         if not strategy:
+            # Always try the user's actual question before an LLM rewrite.
+            baseline = self.vector_store.hybrid_search_with_rerank(
+                query, k=conf.RETRIEVAL_K, source_filter=source_filter)
+            if baseline:
+                logger.info('原问题命中本地资料: %d 个文档，来源: %s', len(baseline),
+                            [(doc.metadata.get('filename') or doc.metadata.get('source'),
+                              doc.metadata.get('page') or doc.metadata.get('slide')) for doc in baseline])
+                return baseline[:conf.CANDIDATE_M]
+            # Classification is advisory only after a genuine lookup miss.
+            # A course concept can be both general knowledge and present in a user's files.
+            classifier = getattr(self, 'query_classifier', None)
+            if classifier is not None:
+                try:
+                    category = classifier.predict_category(query)
+                except Exception:
+                    category = '专业咨询'
+                if category == '通用知识' and not _requires_local_evidence(query) and not _looks_like_subject_query(query):
+                    return []
             strategy = self.strategy_selector.select_strategy(query)
+            if strategy == '直接检索':
+                return []
         ranked_sub_chunks = []
 
         if strategy == "回溯问题检索":
@@ -147,9 +181,15 @@ class RAGSystem:
             ranked_sub_chunks = self._retrieve_with_hyde(query, source_filter=source_filter)
         else:
             logger.info(f"使用直接检索策略 (查询: '{query}')")
-            ranked_sub_chunks = self.vector_store.hybrid_search_with_rerank(
-                query, k=conf.RETRIEVAL_K, source_filter=source_filter
-            )  # 注意 hybrid_search_with_rerank 返回的是 rerank 后的父文档
+            # 与其他三种策略保持一致: 检索失败退化为"无上下文", 由模型凭通用能力作答,
+            # 而不是把异常一路抛到接口层, 让用户看到 Milvus 的内部报错.
+            try:
+                ranked_sub_chunks = self.vector_store.hybrid_search_with_rerank(
+                    query, k=conf.RETRIEVAL_K, source_filter=source_filter
+                )  # 注意 hybrid_search_with_rerank 返回的是 rerank 后的父文档
+            except Exception as e:
+                logger.exception(f"直接检索失败: {e}")
+                raise
 
         # 选择最终上下文文档, 截取前conf.CANDIDATE_M个文档(控制上下文长度, 避免LLM输入超限)
         logger.info(f"策略 {strategy} 检索到 {len(ranked_sub_chunks)} 个候选文档")
@@ -158,93 +198,56 @@ class RAGSystem:
 
         return final_context_docs
 
-    def generate_answer(self, query, source_filter=None, history=None):
-        """
-        函数作用: 根据查询类型选择直接用LLM或者执行RAG流程, 支持流式输出.
-        :param query: 用户录入的原始查询文本(字符串形式)
-        :param source_filter: 检索来源过滤条件, 仅对'专业咨询'生效.
-        :param history: 对话历史(列表, 可选), 包含字典: {'question': 问题, 'answer': 答案}
-        :return: 生成器, 逐段返回答案文本(字符串)
-        """
-        start_time = time.time()
-        logger.info(f"开始处理查询: '{query}', 学科过滤: {source_filter}")
-
-        if history is not None and not isinstance(history, list):
-            logger.warning(f"无效的历史格式: {type(history)}，忽略历史")
-            history = []
-        elif history:
-            history = history[-5:]  # 限制最多5轮 -> 即: 限制历史长度, 避免上下文过程.
-            for h in history:
-                if not (isinstance(h, dict) and "question" in h and "answer" in h):
-                    logger.warning(f"无效的历史条目: {h}，忽略历史")
-                    history = []
-                    break
-
-        history_context = ""
-        if history:
-            history_context = "\n".join(
-                [f"Q: {h['question']}\nA: {h['answer']}" for h in history]
-            )
-            logger.info(f"使用对话历史: {history_context[:100]}...")
-
-        query_category = self.query_classifier.predict_category(query)
-        # 3.1 规则兜底: 用户指定了学科, 或问题命中学科关键词时, 一律按专业咨询处理.
-        #     否则分类器一旦判成"通用知识", 检索会被跳过, 知识库里的内容根本用不上.
-        if source_filter or _looks_like_subject_query(query):
-            if query_category != "专业咨询":
-                logger.info(f"分类器判为 {query_category}, 但命中学科特征, 按专业咨询走检索")
-            query_category = "专业咨询"
-        logger.info(f"查询分类结果：{query_category} (查询: '{query}')")
-
-        if query_category == "通用知识":
-            logger.info("查询为通用知识，直接调用 LLM")
-            prompt_input = self.rag_prompt.format(
-                context="", history=history_context, question=query, phone=conf.CUSTOMER_SERVICE_PHONE
-            )
-            try:
-                answer = self.llm(prompt_input)
-            except Exception as e:
-                logger.error(f"直接调用 LLM 失败: {e}")
-                answer = f"抱歉，处理您的通用知识问题时出错。请联系人工客服：{conf.CUSTOMER_SERVICE_PHONE}"
-            processing_time = time.time() - start_time
-            logger.info(
-                f"通用知识查询处理完成 (耗时: {processing_time:.2f}s, 查询: '{query}')"
-            )
-            return answer
-
-        logger.info("查询为专业咨询，执行 RAG 流程")
-        strategy = self.strategy_selector.select_strategy(query)
-        context_docs = self.retrieve_and_merge(
-            query, source_filter=source_filter, strategy=strategy
-        )
-
-        if context_docs:
-            context = "\n\n".join([doc.page_content for doc in context_docs])
-            logger.info(f"构建上下文完成，包含 {len(context_docs)} 个文档块")
-        else:
-            context = ""
-            logger.info("未检索到相关文档，上下文为空")
-
-        prompt_input = self.rag_prompt.format(
-            context=context,
-            history=history_context,
-            question=query,
-            phone=conf.CUSTOMER_SERVICE_PHONE
-        )
-
+    def _prepare_answer(self, query, source_filter=None, history=None):
+        history = [h for h in (history if isinstance(history, list) else [])[-5:] if isinstance(h, dict)
+                   and isinstance(h.get('question'), str) and isinstance(h.get('answer'), str)]
+        history_context = "\n".join(f"Q: {h['question']}\nA: {h['answer']}" for h in history)
+        history_context = history_context[-conf.MAX_HISTORY_CHARS:]
+        retrieval_query = query
+        anchor = ''
+        if history and _is_follow_up(query):
+            anchor = next((item['question'] for item in reversed(history)
+                           if not _is_follow_up(item['question'])), history[-1]['question'])
+            if ''.join(query.split()).casefold() in ''.join(anchor.split()).casefold():
+                retrieval_query = anchor
+            else:
+                retrieval_query = anchor + "\n后续问题：" + query
+        needs_local = _requires_local_evidence(query) or bool(anchor and _requires_local_evidence(anchor))
+        # This is a knowledge-base assistant: every non-FAQ question must first
+        # have a chance to match local material, regardless of BERT's old labels.
         try:
-            answer = self.llm(prompt_input)
-        except Exception as e:
-            logger.error(f"调用 LLM 生成最终答案失败: {e}")
-            answer = f"抱歉，处理您的专业咨询问题时出错。请联系人工客服：{conf.CUSTOMER_SERVICE_PHONE}"
+            documents = self.retrieve_and_merge(retrieval_query, source_filter=source_filter)
+        except Exception:
+            logger.exception('知识检索失败')
+            return None, [], '知识库检索暂时失败，请确认向量库服务正常后重试。'
+        if not documents and needs_local:
+            return None, [], '当前知识库没有找到足够相关的资料，无法依据本地文件确认这一点。请补充对应资料，或选择正确的学科。'
+        selected, snippets, remaining = [], [], conf.MAX_CONTEXT_CHARS
+        for doc in documents:
+            if remaining <= 0: break
+            meta = doc.metadata
+            title = meta.get('filename') or os.path.basename(meta.get('file_path') or '') or meta.get('source', '知识库')
+            location = f"第 {meta['page']} 页" if meta.get('page') else f"第 {meta['slide']} 张幻灯片" if meta.get('slide') else ''
+            snippet = doc.page_content[:remaining]
+            snippets.append(f"[{len(selected)+1}] {title} {location}\n{snippet}")
+            selected.append(doc)
+            remaining -= len(snippet)
+        prompt = self.rag_prompt.format(context="\n\n".join(snippets), history=history_context,
+                                        question=query, phone=conf.CUSTOMER_SERVICE_PHONE)
+        return prompt, selected, None
 
-        processing_time = time.time() - start_time
-        logger.info(f"查询处理完成 (耗时: {processing_time:.2f}s, 查询: '{query}')")
-        return answer
+    def generate_answer_stream(self, query, source_filter=None, history=None, on_context=None):
+        prompt, documents, direct = self._prepare_answer(query, source_filter, history)
+        if on_context: on_context(documents)
+        if direct:
+            yield direct
+            return
+        if not documents:
+            yield '以下为通用知识回答，未引用本地资料：\n\n'
+        if self.stream_llm:
+            yield from self.stream_llm(prompt)
+        else:
+            yield self.llm(prompt)
 
-if __name__ == '__main__':
-    vector_store = VectorStore()
-    llm = StrategySelector().call_dashscope
-    rag_system = RAGSystem(vector_store, llm)
-    answer = rag_system.generate_answer('计算圆周率近似值的方法有哪些？', source_filter='ai')
-    print(answer)
+    def generate_answer(self, query, source_filter=None, history=None):
+        return ''.join(self.generate_answer_stream(query, source_filter, history))

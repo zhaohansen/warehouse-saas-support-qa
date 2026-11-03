@@ -7,7 +7,7 @@ from base import logger
 def preprocess_text(text):
     try:
         text = jieba.lcut(text)
-        logger.info("文本分词完成")
+        logger.debug("文本分词完成")
         return text
     except Exception as e:
         logger.error(f"文本分词失败：{e}")

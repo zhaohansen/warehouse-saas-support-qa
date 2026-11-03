@@ -8,8 +8,8 @@ from openai import OpenAI
 
 class StrategySelector:
     def __init__(self):
-        self.client = OpenAI(api_key=config.DASHSCOPE_API_KEY,
-                             base_url=config.DASHSCOPE_BASE_URL)
+        self.client = OpenAI(api_key=config.DASHSCOPE_API_KEY or "not-configured",
+                             base_url=config.DASHSCOPE_BASE_URL, timeout=20, max_retries=0)
         self.strategy_prompt_template = self._get_strategy_prompt()
 
     def call_dashscope(self, prompt):
@@ -25,9 +25,10 @@ class StrategySelector:
                     {"role": "system", "content": "你是一个有用的助手，能够根据用户输入的Prompt严格执行并返回可靠的结果"},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.1
+                temperature=0.1,
+                timeout=20
             )
-            return completion.choices[0].message.content if completion.choices else "直接检索"
+            return (completion.choices[0].message.content or "直接检索") if completion.choices else "直接检索"
         except Exception as e:
             logger.error(f"DashScope API 调用失败: {e}")
             return "直接检索"
@@ -79,6 +80,10 @@ class StrategySelector:
         :return: 字符串 -> 选中的检索策略名称 -> 例如: 直接检索, 子查询检索...
         """
         strategy = self.call_dashscope(self.strategy_prompt_template.format(query=query)).strip()
+        valid = {"直接检索", "假设问题检索", "子查询检索", "回溯问题检索"}
+        strategy = strategy.strip('"\' `。\n')
+        if strategy not in valid:
+            strategy = "直接检索"
         logger.info(f"为查询 '{query}' 选择的检索策略：{strategy}")
         return strategy
 

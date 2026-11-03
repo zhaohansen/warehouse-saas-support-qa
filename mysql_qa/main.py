@@ -1,9 +1,6 @@
 """FAQ 通道的命令行入口，用于单独调试问题匹配。"""
 
-from db.mysql_client import MySQLClient
-from cache.redis_client import RedisClient
-from retrieval.bm25search import BM25Search
-import time
+from mysql_qa.retrieval.bm25search import BM25Search
 from base import logger
 
 

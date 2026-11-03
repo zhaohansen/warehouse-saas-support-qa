@@ -4,7 +4,7 @@ from configparser import ConfigParser
 from pathlib import Path
 import os
 
-config_file = Path(__file__).with_name("config.ini")
+config_file = Path(os.getenv("QA_CONFIG_PATH", str(Path(__file__).with_name("config.ini"))))
 parser = ConfigParser()
 if not parser.read(config_file, encoding="utf-8"):
     raise FileNotFoundError(f"配置文件不存在: {config_file}")
@@ -42,9 +42,7 @@ class Config:
     sparse_weight = parser.getfloat("retrieval", "sparse_weight")
     nprobe = parser.getint("retrieval", "nprobe")
     min_score = parser.getfloat("retrieval", "min_score")
-    DASHSCOPE_API_KEY = parser.get(
-        "llm", "api_key", fallback=os.getenv("DASHSCOPE_API_KEY", "")
-    )
+    DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "").strip() or parser.get("llm", "api_key", fallback="").strip()
     DASHSCOPE_BASE_URL = parser.get(
         "llm",
         "base_url",
@@ -56,9 +54,16 @@ class Config:
         for item in parser.get("app", "valid_sources", fallback="ai").split(",")
         if item.strip()
     ]
+    FAQ_THRESHOLD = parser.getfloat("app", "faq_threshold", fallback=0.85)
+    if not 0 <= FAQ_THRESHOLD <= 1:
+        raise ValueError("faq_threshold 必须在 0 到 1 之间")
     CUSTOMER_SERVICE_PHONE = parser.get("app", "customer_service_phone", fallback="")
     DATA_DIR = str((PROJECT_ROOT / data_dir).resolve())
-    MODELS_DIR = str((PROJECT_ROOT / "models").resolve())
+    MODELS_DIR = str((PROJECT_ROOT / "rag_qa" / "models").resolve())
+    HISTORY_PATH = str(PROJECT_ROOT / "storage" / "history.sqlite3")
+    MAX_OUTPUT_TOKENS = parser.getint("llm", "max_output_tokens", fallback=4096)
+    MAX_CONTEXT_CHARS = parser.getint("retrieval", "max_context_chars", fallback=12000)
+    MAX_HISTORY_CHARS = parser.getint("app", "max_history_chars", fallback=12000)
     MILVUS_HOST = milvus_host
     MILVUS_PORT = milvus_port
     MILVUS_DATABASE_NAME = milvus_database
@@ -68,6 +73,7 @@ class Config:
     CHUNK_OVERLAP = chunk_overlap
     BATCH_SIZE = batch_size
     RETRIEVAL_K = retrieval_k
+    RECALL_CANDIDATES = max(retrieval_k, min(100, parser.getint("retrieval", "recall_candidates", fallback=20)))
     CANDIDATE_M = candidate_m
     DENSE_WEIGHT = dense_weight
     SPARSE_WEIGHT = sparse_weight
