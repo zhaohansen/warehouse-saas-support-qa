@@ -1,29 +1,24 @@
 """图片加载器：OCR 识别图片中的文字。"""
 
 from typing import Iterator
-from rag_qa.edu_document_loaders.edu_ocr import get_ocr
+from rag_qa.document_loaders.ocr import get_ocr
 from langchain_core.documents import Document
 from langchain_core.document_loaders import BaseLoader
 
 
 class OCRIMGLoader(BaseLoader):
-    """An example document loader that reads a file line by line."""
+    """把一张图片里的文字 OCR 成单个 Document。"""
 
     def __init__(self, img_path: str) -> None:
-        """Initialize the loader with a file path.
+        """使用图片路径初始化加载器。
 
-        Args:
-            img_path: The path to the img to load.
+        参数：
+            img_path: 待识别的图片路径。
         """
         self.img_path = img_path
 
     def lazy_load(self) -> Iterator[Document]:
-        """A lazy loader that reads a file line by line.
-
-        When you're implementing lazy load methods, you should use a generator
-        to yield documents one by one.
-        """
-
+        """识别整张图片，产出包含文字与来源路径的单个 Document。"""
         line = self.img2text()
         yield Document(page_content=line, metadata={"source": self.img_path})
 
@@ -37,6 +32,5 @@ class OCRIMGLoader(BaseLoader):
         return resp
 
 if __name__ == '__main__':
-    img_loader = OCRIMGLoader(img_path='/0001.项目目录/others/test/人工智能就业课课程大纲.png')
-    doc = img_loader.load()
-    print(doc)
+    img_loader = OCRIMGLoader(img_path='sample/mysql_index_diagram.png')
+    print(img_loader.load())

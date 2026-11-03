@@ -1,8 +1,9 @@
-"""BERT 意图分类：区分通用知识与专业咨询，含训练、评估与预测。"""
+"""BERT 问题二分类：训练、评估和预测通用知识 / 学科资料标签。"""
 
 import json
 import os, sys
-current_dir= os.path.dirname(os.path.abspath(__file__))
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
 rag_qa_path = os.path.dirname(current_dir)
 project_root = os.path.dirname(rag_qa_path)
 sys.path.insert(0, project_root)
@@ -11,9 +12,27 @@ import torch
 from base.logger import logger
 import numpy as np
 from transformers import BertTokenizer, BertForSequenceClassification
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainerCallback, TrainingArguments
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
+
+
+class _ROCmTrainingLayerNorm(torch.nn.LayerNorm):
+    def forward(self, inputs):
+        result = torch.nn.functional.layer_norm(
+            inputs.to('cpu'), self.normalized_shape,
+            self.weight.to('cpu') if self.weight is not None else None,
+            self.bias.to('cpu') if self.bias is not None else None,
+            self.eps,
+        )
+        return result.to(inputs.device)
+
+
+class _CheckFiniteGradients(TrainerCallback):
+    def on_pre_optimizer_step(self, args, state, control, model=None, **kwargs):
+        for name, parameter in model.named_parameters():
+            if parameter.grad is not None and not torch.isfinite(parameter.grad).all():
+                raise RuntimeError(f'训练梯度出现无效数值，已停止训练：{name}')
 
 
 class QueryClassifier:
@@ -23,30 +42,33 @@ class QueryClassifier:
             os.path.normpath(os.path.join(current_dir, model_path))
             if not os.path.isabs(model_path) else model_path
         )
-        bert_path = os.path.join(rag_qa_path, 'models', 'bert-base-chinese')
-        self.tokenizer = BertTokenizer.from_pretrained(bert_path)
+        self.bert_path = os.path.join(rag_qa_path, 'models', 'bert-base-chinese')
+        self.tokenizer = None
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f'使用设备: {self.device}')
-        self.label_map = {"通用知识": 0, "专业咨询": 1}
+        # 标签的具体判定依据取决于训练数据的标注规则。
+        self.label_map = {"通用知识": 0, "学科资料": 1}
         self.load_model()
 
     def load_model(self):
         """
-        函数功能: 加载模型, 优先从self.model_path加载, 不存在则初始化基于 bert-base-chinese的新模型
+        函数功能: 从 self.model_path 加载分类模型；不可用时由调用方使用检索兜底。
         :return:
         """
-        if os.path.exists(self.model_path):
-            self.model = BertForSequenceClassification.from_pretrained(self.model_path)
+        if not os.path.exists(os.path.join(self.model_path, "config.json")):
+            logger.warning("分类模型未安装，默认检索知识库；不会使用未经训练的分类头")
+            return
+        try:
+            tokenizer_path = self.model_path if os.path.exists(
+                os.path.join(self.model_path, 'vocab.txt')) else self.bert_path
+            self.tokenizer = BertTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+            self.model = BertForSequenceClassification.from_pretrained(self.model_path, local_files_only=True)
             self.model.to(self.device)
             self.model.eval()
-            logger.info(f"加载模型: {self.model_path}")
-        else:
-            self.model = BertForSequenceClassification.from_pretrained(bert_path, num_labels=2)
-            self.model.to(self.device)
-            # 新建模型也切换到推理模式，避免预测时启用 Dropout。
-            self.model.eval()
-            logger.info("初始化新 BERT 模型")
+        except (OSError, RuntimeError, ValueError):
+            logger.exception("分类模型加载失败，使用检索兜底")
+            self.model = None
 
     def save_model(self):
         self.model.save_pretrained(self.model_path)
@@ -55,7 +77,7 @@ class QueryClassifier:
 
     def preprocess_data(self, texts, labels):
         """
-        函数功能: 对文本进行分词, 阶段, 填充, 将标签转换为: 数字.
+        函数功能: 对文本分词、截断和填充，并将标签转换为数字。
         :param texts: 待处理的文本列表.
         :param labels: 文本对应的标签列表.
         :return: 处理后的编码 (input_ids, attention_mask) 和 数字标签列表.
@@ -86,18 +108,44 @@ class QueryClassifier:
 
         return Dataset(encodings, labels)
 
-    def train_model(self, data_file="training_dataset_hybrid_5000.json"):
+    def train_model(self, data_file=None):
         """
-        函数功能: 训练BERT分类模型, 区分查询分类为'通用知识' 和 '专业咨询'
+        函数功能: 使用标注数据训练 BERT 问题二分类模型。
         :param data_file: 数据集文件路径.
         :return: 无
         """
+        data_file = data_file or os.path.join(rag_qa_path, 'classify_data', 'subject_scope_5000.json')
+        if self.model is None:
+            self.tokenizer = BertTokenizer.from_pretrained(self.bert_path, local_files_only=True)
+            self.model = BertForSequenceClassification.from_pretrained(self.bert_path, num_labels=2,
+                                                                       local_files_only=True)
+            self.model.to(self.device)
+        if (self.device.type == 'cuda' and torch.version.hip
+                and torch.__version__.startswith('2.12.0')
+                and torch.version.hip.startswith('7.14.')):
+            # 此 ROCm 版本在 RX 7700 XT 上训练时，BERT 的 LayerNorm 梯度曾出现非有限值。
+            self.model.set_attn_implementation('eager')
+            for name, layer in list(self.model.named_modules()):
+                if isinstance(layer, torch.nn.LayerNorm):
+                    replacement = _ROCmTrainingLayerNorm(
+                        layer.normalized_shape, eps=layer.eps,
+                        elementwise_affine=layer.elementwise_affine,
+                        device=layer.weight.device, dtype=layer.weight.dtype,
+                    )
+                    replacement.load_state_dict(layer.state_dict())
+                    self.model.set_submodule(name, replacement)
+            logger.info('ROCm 训练的 LayerNorm 使用 CPU，模型其余部分保持 GPU 运行')
         if not os.path.exists(data_file):
             logger.error(f"数据集文件 {data_file} 不存在")
             raise FileNotFoundError(f"数据集文件 {data_file} 不存在")
 
         with open(data_file, "r", encoding="utf-8") as f:
-            data = [json.loads(value) for value in f.readlines()]
+            raw = f.read()
+            try:
+                data = json.loads(raw)
+                if isinstance(data, dict): data = [data]
+            except json.JSONDecodeError:
+                data = [json.loads(value) for value in raw.splitlines() if value.strip()]
         texts = [item["query"] for item in data]
         labels = [item["label"] for item in data]
 
@@ -115,9 +163,8 @@ class QueryClassifier:
             per_device_eval_batch_size=8,
             warmup_steps=20,
             weight_decay=0.01,
-            logging_dir="./bert_logs",
             logging_steps=10,
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
             save_total_limit=1,
@@ -129,10 +176,13 @@ class QueryClassifier:
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=val_dataset,
-            compute_metrics=self.compute_metrics
+            compute_metrics=self.compute_metrics,
+            callbacks=[_CheckFiniteGradients()],
         )
         logger.info("开始训练 BERT 模型...")
         trainer.train()
+        if any(not torch.isfinite(p).all() for p in self.model.parameters()):
+            raise RuntimeError('训练后模型参数出现无效数值，未保存模型')
         self.save_model()
         self.evaluate_model(val_texts, val_labels)
 
@@ -169,20 +219,22 @@ class QueryClassifier:
         logger.info(classification_report(
             true_labels,
             pred_labels,
-            target_names=["通用知识", "专业咨询"]
+            labels=[0, 1],
+            target_names=["通用知识", "学科资料"],
+            zero_division=0,
         ))
         logger.info("混淆矩阵:")
-        logger.info(confusion_matrix(true_labels, pred_labels))
+        logger.info(confusion_matrix(true_labels, pred_labels, labels=[0, 1]))
 
     def predict_category(self, query):
         """
-        函数功能: 对单个查询文本进行类别预测 -> 通用知识 或者 专业咨询.
+        函数功能: 对单个查询文本进行类别预测 -> 通用知识 或者 学科资料.
         :param query: 待分类的查询文本
         :return: 类别名称(文本标签)
         """
         if self.model is None:
-            logger.error("模型未训练或加载!")
-            return '通用知识'
+            logger.debug("分类模型不可用，默认检索")
+            return '学科资料'
 
         encoding = self.tokenizer(
             query,
@@ -191,17 +243,40 @@ class QueryClassifier:
             max_length=128,
             return_tensors="pt"
         )
-        encoding = {k: v.to(self.device) for k, v in encoding
-        .items()}
+        encoding = {key: value.to(self.device) for key, value in encoding.items()}
 
         self.model.eval()
         with torch.inference_mode():
             outputs = self.model(**encoding)
             prediction = torch.argmax(outputs.logits, dim=1).item()
 
-        return '专业咨询' if prediction == 1 else '通用知识'
+        return '学科资料' if prediction == 1 else '通用知识'
+
 
 if __name__ == '__main__':
-    query_classify = QueryClassifier()
-    result = query_classify.predict_category('大数据分析师需要考取哪些证书')
-    print(result)
+    classifier = QueryClassifier(
+        model_path=os.path.join(rag_qa_path, "models", "bert_query_classifier")
+    )
+    # classifier.model_path = os.path.join(rag_qa_path, 'models', 'bert_query_classifier')
+    # data_file = os.path.join(rag_qa_path, 'classify_data', 'subject_scope_5000.json')
+    # classifier.train_model(data_file)
+
+    if classifier.model is None:
+        print("模型未加载，请检查模型路径")
+    else:
+        test_queries = [
+            "什么是人工智能？",
+            "MySQL索引是干什么的？",
+            "Python如何实现冒泡排序？",
+            "今天为什么会下雨？",
+            "数据库事务的隔离级别有哪些？",
+            "什么是牛顿第二定律？",
+            "Transformer的注意力机制是什么？",
+            "如何提高睡眠质量？"
+        ]
+
+        for query in test_queries:
+            result = classifier.predict_category(query)
+            print(f"问题：{query}")
+            print(f"预测：{result}")
+            print("-" * 40)

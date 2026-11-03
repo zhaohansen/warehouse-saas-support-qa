@@ -8,13 +8,13 @@ from openai import OpenAI
 
 class StrategySelector:
     def __init__(self):
-        self.client = OpenAI(api_key=config.DASHSCOPE_API_KEY,
-                             base_url=config.DASHSCOPE_BASE_URL)
+        self.client = OpenAI(api_key=config.LLM_API_KEY or "not-configured",
+                             base_url=config.LLM_BASE_URL, timeout=20, max_retries=0)
         self.strategy_prompt_template = self._get_strategy_prompt()
 
-    def call_dashscope(self, prompt):
+    def call_llm(self, prompt):
         """
-        调用DashScope大模型API, 获取模型对输入提示的响应.
+        调用配置的大模型 API，获取模型对输入提示的响应。
         :param prompt: 发给大模型的提示文本(字符和窜), 包含: 用户查询和任务要求.
         :return: 大模型返回的文本结果(字符串), 这里是选择的策略名称, 如果调用失败, 直接返回: 直接检索
         """
@@ -25,11 +25,12 @@ class StrategySelector:
                     {"role": "system", "content": "你是一个有用的助手，能够根据用户输入的Prompt严格执行并返回可靠的结果"},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.1
+                temperature=0.1,
+                timeout=20
             )
-            return completion.choices[0].message.content if completion.choices else "直接检索"
+            return (completion.choices[0].message.content or "直接检索") if completion.choices else "直接检索"
         except Exception as e:
-            logger.error(f"DashScope API 调用失败: {e}")
+            logger.error(f"模型 API 调用失败: {e}")
             return "直接检索"
 
     def _get_strategy_prompt(self):
@@ -43,9 +44,9 @@ class StrategySelector:
                 * 描述：对用户查询直接进行检索，不进行任何增强处理。
                 * 适用场景：适用于查询意图明确，需要从知识库中检索**特定信息**的问题，例如：
                     * 示例：
-                        * 查询：AI 学科学费是多少？
+                        * 查询：AI 课件里讲的注意力机制是什么？
                         * 策略：直接检索
-                    * 查询：JAVA的课程大纲是什么？
+                    * 查询：Java 课件第三章的索引优化讲的是什么？
                         * 策略：直接检索
             2.  **假设问题检索（HyDE）：**
                 * 描述：使用 LLM 生成一个假设的答案，然后基于假设答案进行检索。
@@ -78,10 +79,14 @@ class StrategySelector:
         :param query: 用户输入的查询文本(字符串)
         :return: 字符串 -> 选中的检索策略名称 -> 例如: 直接检索, 子查询检索...
         """
-        strategy = self.call_dashscope(self.strategy_prompt_template.format(query=query)).strip()
-        logger.info(f"为查询 '{query}' 选择的检索策略：{strategy}")
+        strategy = self.call_llm(self.strategy_prompt_template.format(query=query)).strip()
+        valid = {"直接检索", "假设问题检索", "子查询检索", "回溯问题检索"}
+        strategy = strategy.strip('"\' `。\n')
+        if strategy not in valid:
+            strategy = "直接检索"
+        logger.debug(f"为查询 '{query}' 选择的检索策略：{strategy}")
         return strategy
 
 if __name__ == '__main__':
-    ss = StrategySelector()
-    ss.select_strategy('如何培养孩子的时间管理能力')
+    selector = StrategySelector()
+    print(selector.select_strategy('课件第三章讲的索引优化是什么？'))

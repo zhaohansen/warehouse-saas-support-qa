@@ -32,20 +32,21 @@ class ChineseRecursiveTextSplitter(RecursiveCharacterTextSplitter):
             is_separator_regex: bool = True,
             **kwargs: Any,
     ) -> None:
-        """Create a new TextSplitter."""
+        """创建文本切分器。"""
         super().__init__(keep_separator=keep_separator, **kwargs)
         self._separators = separators or [
             "\n\n",
             "\n",
             "。|！|？",
-            "\.\s|\!\s|\?\s",
-            "；|;\s",
-            "，|,\s"
+            r"\.\s|\!\s|\?\s",
+            r"；|;\s",
+            r"，|,\s",
+            ""
         ]
         self._is_separator_regex = is_separator_regex
 
     def _split_text(self, text: str, separators: List[str]) -> List[str]:
-        """Split incoming text and return chunks."""
+        """切分传入的文本并返回文本块。"""
         final_chunks = []
         separator = separators[-1]
         new_separators = []

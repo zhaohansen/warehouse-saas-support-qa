@@ -26,3 +26,9 @@ bert_logs/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# User-uploaded knowledge documents
+rag_qa/data/*_data/uploads/
+
+# Local conversation history
+storage/
