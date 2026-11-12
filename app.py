@@ -225,8 +225,9 @@ def create_app(qa_factory=None, importer_factory=None):
 
     @app.delete('/api/documents')
     async def delete_document(source: str, document_id: str):
+        target = importer()
         try:
-            return await run_in_threadpool(importer().delete_file, source, document_id)
+            return await run_in_threadpool(target.delete_file, source, document_id)
         except ImportValidationError as exc:
             raise HTTPException(400, str(exc))
         except FileNotFoundError as exc:

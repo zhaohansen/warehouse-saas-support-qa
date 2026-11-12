@@ -151,70 +151,45 @@ class RAGSystem:
             return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
 
     def retrieve_and_merge(self, query, source_filter=None, strategy=None):
-
-        """
-        函数作用: 统一入口: 根据指定策略(或自动选择策略)调用对应检索方法, 筛选最终用于生成答案的上下文文档.
-        :param query: 用户的原始查询文本 -> str, 传递给策略选择器 和 检索方法.
-        :param source_filter: 检索来源过滤条件
-        :param strategy: 指定检索策略, 可选: 直接检索, 回溯问题检索...
-        :return: list[Document]
-        """
-        first_retrieval = None
+        """先选择策略，再检索原问题；增强策略结果与原问题结果合并重排。"""
         if not strategy:
-            # 分类器可能误判；所有问题先检索一次本地知识库。
-            first_retrieval = self.vector_store.hybrid_search_with_rerank(
-                query, k=conf.RETRIEVAL_K, source_filter=source_filter)
-            if first_retrieval:
-                result = first_retrieval[:conf.CANDIDATE_M]
-                logger.info('原问题检索命中本地资料：%d 条', len(result))
-                return result
             classifier = getattr(self, 'query_classifier', None)
             try:
                 category = classifier.predict_category(query) if classifier is not None else '学科资料'
                 logger.info('意图识别（问题分类）：%s', category)
             except Exception:
-                logger.exception('问题分类失败，按学科资料继续检索')
-                category = '学科资料'
-
-            needs_local = _requires_local_evidence(query)
-            has_subject_term = _has_clear_subject_term(query)
-            if category == '通用知识' and not needs_local and not has_subject_term:
-                logger.info('原问题检索未命中，按通用知识回答')
-                return []
-            if category == '通用知识':
-                reason = '明确要求本地资料' if needs_local else '包含明确学科术语'
-                logger.info('最终路由：学科资料（%s，修正分类器结果）', reason)
-            else:
-                logger.debug('最终路由：学科资料，选择检索策略')
-            strategy = self.strategy_selector.select_strategy(query)
-        ranked_sub_chunks = []
-
-        if strategy == "回溯问题检索":
-            # 所有策略都传递来源过滤，避免回溯/子查询/HyDE 绕过用户筛选条件。
-            ranked_sub_chunks = self._retrieve_with_backtracking(query, source_filter=source_filter)
-        elif strategy == "子查询检索":
-            ranked_sub_chunks = self._retrieve_with_subqueries(query, source_filter=source_filter)
-            # 注意：子查询返回的是已 rerank 过的父文档或子块列表，后续合并逻辑可能需要调整
-            # 当前实现中，子查询返回的是初步检索（可能已rerank）的块，再进行合并
-        elif strategy == "假设问题检索":
-            ranked_sub_chunks = self._retrieve_with_hyde(query, source_filter=source_filter)
-        else:
-            logger.debug(f"使用直接检索策略 (查询: '{query}')")
-            # 与其他三种策略保持一致: 检索失败退化为"无上下文", 由模型凭通用能力作答,
-            # 而不是把异常一路抛到接口层, 让用户看到 Milvus 的内部报错.
+                logger.exception('问题分类失败，仍继续选择策略并检索')
             try:
-                ranked_sub_chunks = first_retrieval if first_retrieval is not None else (
-                    self.vector_store.hybrid_search_with_rerank(
-                        query, k=conf.RETRIEVAL_K, source_filter=source_filter))
-            except Exception as e:
-                logger.exception(f"直接检索失败: {e}")
-                raise
+                strategy = self.strategy_selector.select_strategy(query)
+            except Exception:
+                logger.exception('选择检索策略失败，回退直接检索')
+                strategy = '直接检索'
 
-        # 选择最终上下文文档, 截取前conf.CANDIDATE_M个文档(控制上下文长度, 避免LLM输入超限)
-        final_context_docs = ranked_sub_chunks[: conf.CANDIDATE_M]
-        logger.info('检索结果 | 策略：%s | 候选：%d | 选用：%d', strategy, len(ranked_sub_chunks), len(final_context_docs))
+        # 不论分类结果或选中策略，都先检索原问题。
+        direct_docs = self.vector_store.hybrid_search_with_rerank(
+            query, k=conf.RETRIEVAL_K, source_filter=source_filter)
 
-        return final_context_docs
+        if strategy == '回溯问题检索':
+            enhanced_docs = self._retrieve_with_backtracking(query, source_filter=source_filter)
+        elif strategy == '子查询检索':
+            enhanced_docs = self._retrieve_with_subqueries(query, source_filter=source_filter)
+        elif strategy == '假设问题检索':
+            enhanced_docs = self._retrieve_with_hyde(query, source_filter=source_filter)
+        else:
+            enhanced_docs = []
+
+        if enhanced_docs:
+            unique_docs = {}
+            for doc in direct_docs + enhanced_docs:
+                unique_docs.setdefault(_document_identity(doc), doc)
+            ranked_docs = self.vector_store.rerank_documents(query, list(unique_docs.values()))
+        else:
+            ranked_docs = direct_docs
+
+        final_docs = ranked_docs[:conf.CANDIDATE_M]
+        logger.info('检索结果 | 策略：%s | 原问题：%d | 增强结果：%d | 选用：%d',
+                    strategy, len(direct_docs), len(enhanced_docs), len(final_docs))
+        return final_docs
 
     def _prepare_answer(self, query, source_filter=None, history=None):
         history = [h for h in (history if isinstance(history, list) else [])[-5:] if isinstance(h, dict)

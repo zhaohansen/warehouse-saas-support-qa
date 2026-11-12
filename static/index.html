@@ -1739,7 +1739,11 @@ body { font-size: 14px; }
         function selectFile(file) {
             if (state.uploading) return;
             state.file = null;
+            $('document-file').value = '';
+            $('selected-file').textContent = '点击选择，或将文件拖到这里';
+            $('btn-upload').disabled = true;
             $('import-status').hidden = true;
+            $('import-status').classList.remove('warning');
             if (!file) return;
             if (!/\.(pdf|pptx|txt)$/i.test(file.name) || !file.size || file.size > 20 * 1024 * 1024) {
                 $('import-status').hidden = false;
