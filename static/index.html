@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>企业知识库问答工作台</title>
+    <title>仓配 SaaS 实施与售后知识问答系统</title>
     <style>
         :root {
             --bg: #f6f7f9;
@@ -332,6 +332,58 @@
 
         .scope-note { margin-left: auto; flex: none; color: var(--muted); font-size: 12px }
 
+        .filter-bar {
+            flex: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 8px 28px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line)
+        }
+
+        .filter-bar label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 12px
+        }
+
+        .filter-bar select {
+            height: 30px;
+            max-width: 210px;
+            padding: 0 26px 0 9px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text);
+            font-size: 12.5px
+        }
+
+        .filter-clear {
+            height: 30px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 12px;
+            cursor: pointer
+        }
+
+        .filter-clear:hover { background: #eef3fb; color: var(--text) }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px
+        }
+
+        .meta-grid .field-label { margin-top: 0 }
+
         .chat-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain }
 
         .chat-inner { max-width: 820px; margin: 0 auto; padding: 0 28px }
@@ -565,6 +617,15 @@
 
         /* ---------- 来源 ---------- */
         .sources { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line) }
+
+        .source-link {
+            margin-left: 6px;
+            color: var(--accent);
+            font-size: 11.5px;
+            text-decoration: none
+        }
+
+        .source-link:hover { text-decoration: underline }
 
         .sources-head {
             display: flex;
@@ -1006,133 +1067,205 @@
             *, *::before, *::after { animation: none !important; transition: none !important }
             .chat-log { scroll-behavior: auto }
         }
-/* Workspace theme */
-:root {
-    --bg: #f4f7fc;
-    --surface: #fff;
-    --sidebar: #e8f1ff;
-    --ink: #162842;
-    --ink-soft: #354a64;
-    --muted: #536580;
-    --line: #dce5f0;
-    --line-strong: #c4d2e4;
-    --accent: #225bc0;
-    --accent-dark: #194491;
-    --accent-soft: #e6efff;
-    --sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-}
-.app { grid-template-columns: 248px minmax(0, 1fr) }
-.sidebar { padding: 24px 16px 16px; border-color: #d1e0f5; color: #213b5f }
-.brand { gap: 11px; padding: 0 4px 27px }
-.brand-logo { border-radius: 12px; background: #cde2ff; color: #193e72; width: 42px; height: 42px }
-.brand-text span, .sidebar .section-head, .sidebar .session-meta, .sidebar .empty { color: #4e6687 }
-.new-chat { background: #cde2ff; color: #18396a; border-radius: 10px; height: 42px }
-.new-chat:hover { background: #b9d6ff }
-.session-search { margin-top: 21px }
-.session-search input { border-color: #c2d4ed; background: #f3f8ff; color: #213b5f }
-.session-search input::placeholder { color: #4e6687 }
-.session:hover, .session.active, .library-entry:hover { background: #d7e7fc }
-.session-title, .session.active .session-title { color: #213b5f }
-.session-delete, .sidebar-close, .library-icon { color: #456286 }
-.sidebar-foot { border-color: #ccddf3; padding-top: 13px }
-.library-entry { background: #f3f8ff; padding: 11px 10px; border-radius: 10px }
-.session.active { box-shadow: inset 3px 0 var(--accent) }
-.sidebar .badge { background: #cde2ff; color: #193e72 }
-.topbar { padding-inline: clamp(18px, 3vw, 40px); height: 66px }
-.topbar-title h1 { font-size: 17px }
-.status { padding: 4px 9px; border-radius: 20px; background: #edf2f9; white-space: nowrap }
-.status[data-state=ready] { background: var(--success-soft) }
-.status[data-state=partial] { background: var(--warn-soft) }
-.status[data-state=down] { background: var(--danger-soft) }
-.ghost-btn, .primary-btn, .send-btn { border-radius: 9px; height: 36px }
-.scope-bar { padding-inline: clamp(18px, 3vw, 40px); gap: 16px }
-.scope-tabs { gap: 6px }
-.scope-tab { border-radius: 20px; padding-inline: 13px }
-.scope-tab[aria-pressed=true] { box-shadow: inset 0 0 0 1px #b4cdf4 }
-.chat-inner { max-width: 920px }
-.composer-inner { max-width: 864px }
-.welcome { padding-top: clamp(22px, 5vh, 55px); padding-bottom: 20px }
-.welcome-hero {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    padding: clamp(26px, 4vw, 47px);
-    border: 1px solid #d0e0f6;
-    border-radius: 21px;
-    background: #eaf2fe;
-}
-.welcome-hero::before, .welcome-hero::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    pointer-events: none;
-    width: 236px;
-    height: 236px;
-    border-radius: 50%;
-    right: -48px;
-    bottom: -85px;
-    border: 32px solid #c9dcf7;
-}
-.welcome-hero::after { width: 286px; height: 286px; right: -49px; bottom: -85px; border: 1px solid #b3cbec }
-.welcome h2 { max-width: 16em; margin: 0; font-size: clamp(26px, 4vw, 43px); line-height: 1.2; letter-spacing: -.035em }
-.intro { margin-top: 13px; max-width: 31em; font-size: 14px; color: #405d81 }
-.quick { margin-top: 22px }
-.quick-head { color: var(--ink-soft); font-size: 13px; letter-spacing: 0 }
-.quick-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px }
-.quick-item { flex-direction: column; align-items: flex-start; gap: 8px; position: relative; padding: 12px 14px; border-radius: 13px; min-height: 105px }
-.quick-item:hover { border-color: #a1bde6; background: #f9fbff }
-.quick-tag { min-width: 0; color: var(--accent-dark); background: var(--accent-soft) }
-.quick-item p { padding-right: 12px; font-size: 13px; font-weight: 600 }
-.quick-item::after { position: absolute; right: 10px; bottom: 7px; color: var(--accent); font-size: 17px }
-.welcome-note { margin-top: 12px }
-.composer { background: var(--bg); border-top: 0; padding-top: 8px }
-.inputbox { border-radius: 16px; box-shadow: 0 4px 18px #152d5410 }
-.inputbox:focus-within { box-shadow: 0 0 0 3px #225bc022 }
-.composer-tools { justify-content: flex-end }
-.input-hint { margin-right: auto }
-.message.assistant .message-body { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px clamp(13px, 2.4vw, 22px) }
-.message.user .message-body { background: #e0ecff }
-.sources { padding: 12px; margin-top: 16px; border: 1px solid var(--line); border-radius: 11px; background: #f4f8ff }
-.source.flash { border-color: #b4cdf4 }
-.dialog { border-radius: 18px; box-shadow: 0 24px 80px #19396036 }
-.droparea:hover, .droparea.over { border-color: var(--accent); background: var(--accent-soft) }
-@media (max-width: 960px) {
-    .app { grid-template-columns: 214px minmax(0, 1fr) }
-    .quick-item { padding-inline: 10px }
-}
-@media (max-width: 720px) {
-    .sidebar { visibility: hidden; width: min(280px, 85vw) }
-    .sidebar.open { visibility: visible }
-    .topbar { height: 58px; padding-inline: 12px; gap: 5px }
-    .topbar-actions { gap: 5px }
-    .topbar-title h1 { font-size: 14px }
-    .status { padding: 3px }
-    .scope-bar { padding-inline: 11px }
-    .scope-tab { padding-inline: 9px }
-    .welcome { padding-top: 16px }
-    .welcome-hero { padding: 21px 16px; border-radius: 15px }
-    .welcome-hero::before { width: 105px; height: 105px; right: -43px; bottom: -65px; border-width: 20px }
-    .welcome-hero::after { width: 138px; height: 138px; right: -39px; bottom: -61px }
-    .welcome h2 { font-size: clamp(24px, 6vw, 31px) }
-    .intro { margin-top: 8px; font-size: 13px }
-    .quick { margin-top: 15px }
-    .quick-list { grid-template-columns: 1fr; gap: 6px }
-    .quick-item { flex-direction: row; align-items: center; min-height: 42px; padding: 8px 27px 8px 9px; gap: 7px }
-    .quick-item p { padding-right: 0; font-size: 12px }
-    .quick-item::after { top: 50%; bottom: auto; transform: translateY(-50%) }
-}
+        /* 工作台主题 */
+        :root {
+            --bg: #f4f8fd;
+            --sidebar: #e8f2ff;
+            --ink: #132338;
+            --ink-soft: #34465c;
+            --muted: #58697d;
+            --line: #dce4ed;
+            --line-strong: #c4d1df;
+            --accent: #245db1;
+            --accent-dark: #1b478a;
+            --accent-soft: #e4efff;
+            --sans: "Inter", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+        }
 
-@media (min-width: 721px) { .sidebar .sidebar-close { display: none } }
+        .app { grid-template-columns: 248px minmax(0, 1fr) }
+        .sidebar { padding: 24px 16px 17px; border-color: #d1e1f5; color: var(--ink) }
+        .brand { gap: 11px; padding: 0 4px 25px }
+        .brand-logo { width: 40px; height: 40px; border-radius: 12px; background: #cce2ff; color: var(--accent-dark) }
+        .brand-text strong { font-size: 14px; letter-spacing: 0 }
+        .brand .sidebar-close { display: none }
+        .brand-text span, .sidebar .section-head, .sidebar .session-meta, .sidebar .empty { color: var(--muted) }
+        .new-chat { height: 42px; border-radius: 9px; background: #cfe4ff; color: #193e72; text-align: left }
+        .new-chat:hover, .library-entry:hover { background: #c2ddff }
+        .session-search { margin: 22px 0 16px }
+        .session-search input { border-color: #c4d7ed; background: #f5f9ff; color: var(--ink) }
+        .session-search input::placeholder { color: var(--muted) }
+        .sidebar .session:hover, .sidebar .session.active { background: #d7e8ff }
+        .sidebar .session.active { box-shadow: inset 3px 0 var(--accent) }
+        .session-title, .session.active .session-title, .library-entry { color: var(--ink) }
+        .session-delete, .sidebar-close, .library-icon { color: #446284 }
+        .sidebar-foot { border-color: #cddff5; padding-top: 13px }
+        .library-entry { background: #f5f9ff; padding: 11px 10px; border-radius: 9px }
+        .sidebar .badge { background: #d6e8ff; color: var(--accent-dark) }
+        .mask.open, .dialog::backdrop { background: #172e4f70 }
+
+        .topbar, .query-controls { --gutter: clamp(20px, 3vw, 44px) }
+        .topbar { height: 66px; padding-inline: var(--gutter) }
+        .topbar-title h1 { font-size: 17px }
+        .status { padding: 4px 9px; border-radius: 20px; background: #edf2f7; white-space: nowrap }
+        .status[data-state=ready] { background: var(--success-soft) }
+        .status[data-state=partial] { background: var(--warn-soft) }
+        .status[data-state=down] { background: var(--danger-soft) }
+        .ghost-btn, .primary-btn, .send-btn { border-radius: 8px; height: 36px }
+        .query-controls { flex: none; background: var(--surface); border-bottom: 1px solid var(--line) }
+        .scope-bar { padding: 9px var(--gutter) 5px; border: 0; gap: 12px }
+        .scope-tabs { padding: 3px 4px; gap: 3px }
+        .scope-tab { border-radius: 7px; padding-inline: 11px }
+        .scope-tab[aria-pressed=true] { box-shadow: none }
+        .filter-bar { padding: 4px var(--gutter) 11px; border: 0 }
+        .filter-bar select { background: #f7f9fc; color: var(--ink-soft); padding-right: 8px }
+        .filter-clear:hover { background: var(--accent-soft); color: var(--accent-dark) }
+
+        .chat-inner { max-width: 1000px; padding-inline: clamp(20px, 3vw, 34px) }
+        .welcome { padding: clamp(24px, 5vh, 53px) 0 22px }
+        .welcome-hero {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 27%;
+            align-items: center;
+            gap: 20px;
+            padding: clamp(26px, 4.5vw, 49px);
+            border-radius: 17px;
+            border: 1px solid #cbdff8;
+            background: radial-gradient(ellipse at 87% 42%, #cee4ff, transparent 62%), #eaf4ff;
+            color: #16365c;
+        }
+        .welcome-hero::before {
+            content: "";
+            position: absolute;
+            z-index: -1;
+            inset: 0 0 0 55%;
+            background-image: linear-gradient(#4877b525 1px, transparent 1px),
+                              linear-gradient(90deg, #4877b525 1px, transparent 1px);
+            background-size: 22px 22px;
+            mask-image: linear-gradient(90deg, transparent, #000a 40%, #000);
+            pointer-events: none;
+        }
+        .welcome h2 { max-width: 15em; font-size: clamp(27px, 3.4vw, 42px); line-height: 1.28; font-weight: 750; letter-spacing: -.035em }
+        .intro { margin-top: 14px; max-width: 34em; color: #3e5979 }
+        .route-art {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            align-items: center;
+            position: relative;
+            min-height: 124px;
+            color: var(--accent-dark);
+        }
+        .route-art::before {
+            content: "";
+            position: absolute;
+            inset: 50% 9% auto;
+            border-top: 1px dashed #7399cc;
+        }
+        .route-node {
+            position: relative;
+            display: grid;
+            place-items: center;
+            justify-self: center;
+            width: clamp(34px, 4.4vw, 57px);
+            aspect-ratio: 1;
+            border: 1px solid #8fb3df;
+            border-radius: 13px;
+            background: #f2f8ff;
+            font: 23px/1 var(--sans);
+        }
+        .route-node:nth-child(2) { background: #bfdcff; box-shadow: 0 0 0 7px #79aaf12b }
+        .quick { margin-top: 24px }
+        .quick-head { color: var(--ink); font-size: 14px; font-weight: 700; letter-spacing: 0 }
+        .quick-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+        .quick-item {
+            position: relative;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            min-height: 113px;
+            padding: 14px 26px 15px 14px;
+            border-radius: 11px;
+            transition: border-color .15s, background .15s, box-shadow .15s;
+        }
+        .quick-item:hover { border-color: #93b8e7; background: #f6faff; box-shadow: 0 3px 12px #24497e10 }
+        .quick-tag { min-width: 0; align-self: flex-start; color: var(--accent-dark); background: var(--accent-soft) }
+        .quick-item p { font-size: 13px; font-weight: 600; line-height: 1.65 }
+        .quick-item::after { position: absolute; right: 11px; top: 11px; color: var(--accent); font-size: 16px }
+        .welcome-note { margin-top: 13px }
+
+        .composer { background: var(--bg); border-top: 0; padding-top: 10px }
+        .composer-inner { max-width: 932px }
+        .inputbox { border-radius: 13px; box-shadow: 0 5px 20px #13233812 }
+        .inputbox:focus-within { box-shadow: 0 0 0 3px #245db126 }
+        .inputbox textarea::placeholder { color: #657589 }
+        .composer-tools { justify-content: flex-end }
+        .input-hint { margin-right: auto }
+        .input-hint kbd {
+            padding: 1px 4px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--bg);
+            font: inherit;
+        }
+        .send-btn::after { content: " ↑"; margin-left: 3px }
+        .send-btn.stop::after { content: none }
+        .message.assistant .message-body { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 16px clamp(13px, 2.4vw, 22px) }
+        .message.user .message-body { background: var(--accent-soft); color: var(--ink) }
+        .sources { padding: 12px; margin-top: 16px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg) }
+        .source.flash { border-color: #93b8e7 }
+        .dialog { border-radius: 15px; box-shadow: 0 24px 80px #13233845 }
+        .droparea:hover, .droparea.over { border-color: var(--accent); background: var(--accent-soft) }
+
+        @media (max-width: 960px) {
+            .app { grid-template-columns: 215px minmax(0, 1fr) }
+            .welcome-hero { padding: 27px }
+            .quick-item { padding-left: 11px }
+        }
+        @media (max-width: 720px) {
+            .sidebar { visibility: hidden; width: min(280px, 85vw) }
+            .sidebar.open { visibility: visible }
+            .brand .sidebar-close { display: inline-flex; flex: none }
+            .topbar, .query-controls { --gutter: 12px }
+            .topbar { height: 55px; gap: 3px }
+            .topbar-title h1 { font-size: 14px }
+            .topbar-actions { gap: 5px }
+            .status { padding: 4px }
+            .scope-bar { padding-block: 4px 0 }
+            .scope-tabs { padding-inline: 2px }
+            .filter-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding-block: 4px 6px }
+            .filter-bar label { display: grid; gap: 1px; min-width: 0 }
+            .filter-bar select { width: 100%; min-width: 0 }
+            .filter-clear { grid-column: 1 / -1; justify-self: end; height: 24px }
+            .chat-inner { padding-inline: 12px }
+            .welcome { padding-top: 15px }
+            .welcome-hero { display: block; padding: 21px 17px; border-radius: 12px }
+            .route-art { display: none }
+            .welcome h2 { font-size: clamp(24px, 6vw, 32px) }
+            .intro { margin-top: 8px; font-size: 13px }
+            .quick { margin-top: 15px }
+            .quick-list { grid-template-columns: 1fr; gap: 6px }
+            .quick-item { flex-direction: row; align-items: center; min-height: 46px; padding: 7px 26px 7px 9px; gap: 9px }
+            .quick-tag { align-self: center; white-space: nowrap }
+            .quick-item::after { top: 50%; transform: translateY(-50%) }
+            .composer { padding-top: 6px }
+        }
+        @media (max-width: 375px) {
+            .topbar { padding-inline: 8px }
+            .topbar-title { gap: 3px }
+            .topbar-actions .ghost-btn, .topbar-actions .primary-btn { padding-inline: 6px }
+        }
     </style>
 </head>
 <body>
 <div class="app">
     <aside class="sidebar" id="sidebar" aria-label="会话与资料">
         <div class="brand">
-            <div class="brand-logo" aria-hidden="true">▤</div>
+            <div class="brand-logo" aria-hidden="true">▦</div>
             <div class="brand-text">
-                <strong>企业知识库</strong>
-                <span>问答工作台</span>
+                <strong>仓配 SaaS 知识库</strong>
+                <span>实施与售后问答</span>
             </div>
             <button class="icon-btn sidebar-close" id="btn-sidebar-close" aria-label="关闭侧栏">✕</button>
         </div>
@@ -1159,7 +1292,7 @@
                 <button class="icon-btn mobile-menu" id="btn-menu" type="button"
                         aria-label="打开会话与资料" aria-expanded="false">☰</button>
                 <div>
-                    <h1>知识库问答</h1>
+                    <h1>仓配售后知识问答</h1>
                 </div>
             </div>
             <div class="topbar-actions">
@@ -1171,24 +1304,40 @@
             </div>
         </header>
 
-        <div class="scope-bar">
-            <span class="scope-label">检索范围</span>
-            <div class="scope-tabs" id="scope-tabs" role="group" aria-label="检索范围"></div>
-            <span class="scope-note" id="scope-note" aria-live="polite">当前：全部资料</span>
+        <div class="query-controls">
+            <div class="scope-bar">
+                <span class="scope-label">检索范围</span>
+                <div class="scope-tabs" id="scope-tabs" role="group" aria-label="检索范围"></div>
+                <span class="scope-note" id="scope-note" aria-live="polite">当前：全部资料</span>
+            </div>
+
+            <div class="filter-bar" role="group" aria-label="产品、平台和版本筛选">
+                <label>产品<select id="filter-product" aria-label="按产品筛选"><option value="">全部产品</option></select></label>
+                <label>平台<select id="filter-platform" aria-label="按平台筛选"><option value="">全部平台</option></select></label>
+                <label>版本<select id="filter-version" aria-label="按版本筛选"><option value="">全部版本</option></select></label>
+                <button class="filter-clear" id="filter-clear" type="button">清空筛选</button>
+            </div>
         </div>
 
         <div class="chat-log" id="chat-log">
             <div class="chat-inner">
                 <section class="welcome" id="welcome">
                     <div class="welcome-hero">
-                        <h2>你想查哪份企业资料？</h2>
-                        <p class="intro">选一个检索范围，或直接提问。回答用到的资料会列在来源中。</p>
+                        <div>
+                            <h2>今天要排查什么问题？</h2>
+                            <p class="intro">选择产品、平台和版本，再描述你遇到的问题。回答会列出适用条件和可查阅的来源。</p>
+                        </div>
+                        <div class="route-art" aria-hidden="true">
+                            <span class="route-node">▤</span>
+                            <span class="route-node">▦</span>
+                            <span class="route-node">↗</span>
+                        </div>
                     </div>
                     <div class="quick">
                         <div class="quick-head">常见问题</div>
                         <div class="quick-list" id="suggestions"></div>
                     </div>
-                    <p class="welcome-note">项目自带的资料均为虚构演示资料。</p>
+                    <p class="welcome-note">演示资料来自公开帮助文档、API 文档和版本说明，来源链接随回答展示；企业私有资料需授权后导入。</p>
                 </section>
                 <div class="messages" id="messages" hidden></div>
             </div>
@@ -1199,9 +1348,9 @@
                 <div class="kb-banner" id="kb-banner" role="status" hidden></div>
                 <div class="inputbox">
                     <textarea id="input" rows="2" maxlength="6000" aria-label="输入问题"
-                              placeholder="输入问题，例如：协作平台登录不上应该找谁？"></textarea>
+                              placeholder="例如：旺店通库存回写失败，应该先查哪里？"></textarea>
                     <div class="composer-tools">
-                        <span class="input-hint">Enter 发送 · Shift + Enter 换行</span>
+                        <span class="input-hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd> + <kbd>Enter</kbd> 换行</span>
                         <button class="send-btn" id="btn-send" type="button" aria-label="发送问题">发送</button>
                     </div>
                 </div>
@@ -1217,7 +1366,7 @@
         <button class="icon-btn" id="close-library" type="button" aria-label="关闭资料管理">✕</button>
     </div>
     <div class="dialog-body">
-        <p class="dialog-intro">将 PDF、PPTX 或 TXT 导入指定分类，供问答时检索。</p>
+        <p class="dialog-intro">将 PDF、PPTX、DOCX 或 TXT 导入指定分类，供问答时检索。</p>
         <div class="tabs" role="tablist" aria-label="资料操作">
             <button class="tab active" id="tab-upload" type="button" role="tab" aria-selected="true"
                     aria-controls="upload-panel">导入资料</button>
@@ -1229,10 +1378,25 @@
             <label class="field-label" for="upload-source">资料分类</label>
             <select class="field" id="upload-source"></select>
             <p class="field-note">分类决定回答时使用的检索范围，可在主界面顶部随时切换。</p>
-            <input id="document-file" type="file" accept=".pdf,.pptx,.txt" hidden>
+            <div class="meta-grid">
+                <div><label class="field-label" for="upload-title">文档标题</label>
+                    <input class="field" id="upload-title" placeholder="例如：查询库存同步"></div>
+                <div><label class="field-label" for="upload-section">章节</label>
+                    <input class="field" id="upload-section" placeholder="例如：库存类 / 库存同步"></div>
+                <div><label class="field-label" for="upload-product">产品</label>
+                    <select class="field" id="upload-product"><option value="">请选择</option></select></div>
+                <div><label class="field-label" for="upload-platform">平台</label>
+                    <select class="field" id="upload-platform"><option value="">请选择</option></select></div>
+                <div><label class="field-label" for="upload-version">适用版本</label>
+                    <select class="field" id="upload-version"><option value="">请选择</option></select></div>
+                <div><label class="field-label" for="upload-url">原文链接</label>
+                    <input class="field" id="upload-url" placeholder="https://..."></div>
+            </div>
+            <p class="field-note">公开资料请填写原文链接；企业私有资料需先获得授权再导入。</p>
+            <input id="document-file" type="file" accept=".pdf,.pptx,.docx,.txt" hidden>
             <button class="droparea" id="droparea" type="button">
                 <strong id="selected-file">点击选择，或将文件拖到这里</strong>
-                <small>支持 PDF、PPTX、TXT · 单份不超过 20 MB</small>
+                <small>支持 PDF、PPTX、DOCX、TXT · 单份不超过 20 MB</small>
             </button>
             <div class="upload-summary" id="upload-summary">请选择文件并确认资料分类</div>
             <div class="statusbox" id="import-status" role="status" hidden></div>
@@ -1293,7 +1457,7 @@
     (function () {
         'use strict';
         const $ = id => document.getElementById(id),
-            names = {policies: '制度规范', products: '产品手册', operations: '业务流程', onboarding: '员工入职'};
+            names = {product_docs: '产品文档', platform_docs: '平台对接', release_notes: '版本说明', internal_docs: '内部资料（授权后）'};
         const state = {
             sid: null,
             sessions: [],
@@ -1301,6 +1465,10 @@
             documents: [],
             sources: [],
             filter: '',
+            product: '',
+            platform: '',
+            version: '',
+            filterOptions: {products: [], platforms: [], versions: []},
             busy: false,
             ws: null,
             epoch: 0,
@@ -1310,6 +1478,8 @@
             stick: true,
             historyRequest: 0,
             switching: false,
+            deletingSessions: new Set(),
+            documentsRequest: 0,
             ready: null,
             retrievalReady: null,
             confirmAction: null
@@ -1410,7 +1580,7 @@
             const status = $('health');
             $('btn-send').disabled = !state.ready;
             $('input').placeholder = state.ready
-                ? '输入问题，例如：协作平台登录不上应该找谁？'
+                ? '例如：旺店通库存回写失败，应该先查哪里？'
                 : '问答服务未就绪，请检查启动日志';
             if (!state.ready) {
                 status.dataset.state = 'down';
@@ -1676,20 +1846,55 @@
                 (item, position) => String(item.index === undefined || item.index === null ? position + 1 : item.index)))
         }
 
+        function isSourceEntryLine(line) {
+            const value = line.trim();
+            if (!value) return true;
+            // [1] xxx、- [1] xxx、1. xxx 形式的来源条目
+            if (/^(?:[-*+]\s*)?\[\d{1,3}\]/.test(value)) return true;
+            if (/^(?:[-*+]\s*)?\d{1,3}[.)、]\s*/.test(value)) return true;
+            // 条目正文里的链接或元信息
+            if (/https?:\/\//.test(value)) return true;
+            if (/^(?:原文链接|链接|URL|标题|章节|来源|版本|产品|平台|页码|页数)\s*[:：]/.test(value)) return true;
+            // 条目续行
+            return /^\s{2,}\S/.test(line);
+        }
+
+        function stripAnswerSources(text) {
+            // 旧回答或模型仍可能在末尾附一份“来源”清单，与下方来源卡片重复。
+            // 只有确认是“独立的来源标题 + 后续全部为来源条目”时才截断，
+            // 避免把正文中的“来源单据/来源单号”等业务字段当成来源清单，把整段回答误删。
+            const lines = String(text || '').split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const match = lines[i].trim().match(
+                    /^(?:[-*+]\s*)?(?:#{1,6}\s*)?(?:\*\*)?来源(?:清单)?(?:\*\*)?\s*[:：]?\s*(.*)$/);
+                if (!match) continue;
+                const inline = match[1].trim();
+                // 标题行本身不能再带正文，除非直接就是来源条目或链接。
+                if (inline && !/^(?:[-*+]\s*)?(?:\[\d{1,3}\]|https?:\/\/|原文链接)/.test(inline)) continue;
+                const tail = lines.slice(i + 1);
+                if (!tail.some(line => line.trim())) continue;
+                if (!tail.every(isSourceEntryLine)) continue;
+                const block = inline + '\n' + tail.join('\n');
+                if (!/\[\d{1,3}\]/.test(block) || !/(https?:\/\/|原文链接)/.test(block)) continue;
+                const body = lines.slice(0, i).join('\n').trimEnd();
+                return body || text;
+            }
+            return text;
+        }
+
         function renderSources(msg) {
             const sources = msg.sources || [];
             if (!sources.length) {
                 if (msg.error) return;
                 let text = '本次回答未引用知识库资料。';
                 if (msg.status === '已停止生成') text = '已停止生成，未获取到来源信息。';
-                else if ((msg.text || '').includes('没有找到足够相关的资料')) text = '知识库中没有找到足够相关的资料。';
+                else if ((msg.text || '').includes('资料不足') || (msg.text || '').includes('没有找到足够相关的资料')) text = '资料不足，回答中已说明还缺哪项信息或文档。';
                 else if ((msg.text || '').startsWith('以下回答未引用知识库资料')) text = '本次回答未引用知识库资料，请谨慎参考。';
                 msg.extra.append(node('div', 'source-empty', text));
                 return
             }
-            const hasFaq = sources.some(item => String(item.title || '').startsWith('标准问答库'));
             const section = node('section', 'sources');
-            const head = node('div', 'sources-head', hasFaq ? '来源 · 标准问答' : '来源 · 知识库资料');
+            const head = node('div', 'sources-head', '参考来源');
             section.append(head);
             const list = node('ol', 'source-list');
             sources.forEach((item, position) => {
@@ -1705,9 +1910,19 @@
                 const titleRow = node('div', 'source-title');
                 titleRow.append(node('span', '', document || '标准问答库'));
                 titleRow.append(node('span', 'tag' + (isFaq ? ' faq' : ''), isFaq ? '标准问答库' : '知识库引用'));
-                if ((document || '').includes('虚构演示')) titleRow.append(node('span', 'tag demo', '虚构演示'));
+                if (item.source_url) {
+                    const link = node('a', 'source-link', '原文');
+                    link.href = item.source_url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    titleRow.append(link)
+                }
                 const meta = [];
                 if (item.subject) meta.push(category(item.subject));
+                if (item.section) meta.push(item.section);
+                if (item.product) meta.push(item.product);
+                if (item.platform) meta.push(item.platform);
+                if (item.version) meta.push(item.version);
                 if (item.page) meta.push('第 ' + item.page + ' 页');
                 else if (item.slide) meta.push('第 ' + item.slide + ' 张幻灯片');
                 if (meta.length) main.append(titleRow, node('div', 'source-meta', meta.join(' · ')));
@@ -1728,7 +1943,7 @@
             if (msg.text) {
                 const copy = node('button', '', '复制回答');
                 copy.type = 'button';
-                copy.onclick = () => copyText(msg.text);
+                copy.onclick = () => copyText(msg.displayText || msg.text);
                 foot.append(copy)
             }
             foot.append(node('span', '', msg.status || ''));
@@ -1740,13 +1955,19 @@
             msg.done = true;
             ensureMessage(msg);
             msg.prose.classList.remove('is-streaming');
-            if (msg.text) {
+            msg.displayText = stripAnswerSources(msg.text);
+            if (msg.displayText) {
                 rebuildSourceIndexes(msg);
-                renderMarkdown(msg.prose, msg.text, msg)
-            } else if (!msg.error) {
-                msg.prose.replaceChildren(node('div', 'thinking', '未返回回答内容。'))
+                // Markdown 渲染异常时回退为纯文本，避免已生成的回答变成空白。
+                try {
+                    renderMarkdown(msg.prose, msg.displayText, msg)
+                } catch (error) {
+                    msg.prose.replaceChildren(node('p', '', msg.displayText));
+                    msg.notice = msg.notice || '回答格式渲染失败，已按纯文本显示。'
+                }
             } else {
-                msg.prose.replaceChildren()
+                msg.prose.replaceChildren(node('div', 'thinking',
+                    msg.error ? '回答生成中断，未返回完整内容。' : '未返回回答内容。'))
             }
             renderExtras(msg);
             scheduleScroll(false)
@@ -1780,7 +2001,7 @@
                 sources: options.sources || [],
                 error: '',
                 notice: '',
-                done: !!options.instant,
+                done: false,
                 element: null,
                 prose: null,
                 extra: null,
@@ -1867,7 +2088,7 @@
         async function switchSession(sid) {
             stop();
             const request = ++state.historyRequest;
-            state.switching = false;
+            state.switching = true;
             saveSid(sid);
             closeSidebar();
             resetMessages();
@@ -1886,13 +2107,15 @@
                 scrollToBottom()
             } catch (error) {
                 if (request === state.historyRequest) toast(error.message)
+            } finally {
+                if (request === state.historyRequest) state.switching = false
             }
         }
 
         function deleteSession(sid, title) {
             confirmAction('删除对话', '确定删除“' + title + '”这段对话吗？删除后无法恢复。', '删除', async () => {
                 if (state.sid === sid) stop();
-                state.switching = true;
+                state.deletingSessions.add(sid);
                 try {
                     await api('/api/history/' + encodeURIComponent(sid), {method: 'DELETE'});
                     if (state.sid === sid) await newSession();
@@ -1901,7 +2124,7 @@
                 } catch (error) {
                     toast(error.message)
                 } finally {
-                    state.switching = false
+                    state.deletingSessions.delete(sid)
                 }
             })
         }
@@ -1925,11 +2148,34 @@
             $('scope-note').textContent = '当前：' + category(state.filter)
         }
 
+        function fillSelect(id, values, selected, allLabel) {
+            const select = $(id);
+            select.replaceChildren(new Option(allLabel, ''));
+            for (const value of values) select.append(new Option(value, value));
+            select.value = values.includes(selected) ? selected : ''
+        }
+
+        function renderFilters(options) {
+            state.filterOptions = options || state.filterOptions || {};
+            fillSelect('filter-product', state.filterOptions.products || [], state.product, '全部产品');
+            fillSelect('filter-platform', state.filterOptions.platforms || [], state.platform, '全部平台');
+            fillSelect('filter-version', state.filterOptions.versions || [], state.version, '全部版本');
+            fillSelect('upload-product', state.filterOptions.products || [], '', '请选择');
+            fillSelect('upload-platform', state.filterOptions.platforms || [], '', '请选择');
+            fillSelect('upload-version', state.filterOptions.versions || [], '', '请选择')
+        }
+
+        function syncFilters() {
+            state.product = $('filter-product').value;
+            state.platform = $('filter-platform').value;
+            state.version = $('filter-version').value
+        }
+
         function quickQuestions() {
             const rows = [
-                ['协作平台登录不上应该找谁？', '产品手册'],
-                ['报销/审批进度在哪里查询？', '制度规范'],
-                ['新员工入职第一天几点到哪里报到？', '员工入职']
+                ['旺店通 V2.4.6.6，抖音订单同步报错“未找到符合条件的订单”，怎么排查？', '订单同步'],
+                ['旺店通库存同步查询和回写为什么要成对使用？', '库存差异'],
+                ['抖店电子面单取号失败，应该先查什么？', '面单异常']
             ];
             const box = $('suggestions');
             box.replaceChildren();
@@ -1971,8 +2217,8 @@
                 stop();
                 return
             }
-            if (state.switching) {
-                toast('正在开启新对话，请稍候');
+            if (state.switching || state.deletingSessions.has(state.sid)) {
+                toast('正在处理会话，请稍候');
                 return
             }
             if (state.ready === false) {
@@ -1991,6 +2237,7 @@
             }
             state.historyRequest++;
             const epoch = ++state.epoch, sid = state.sid, source = state.filter || null;
+            const {product, platform, version} = state;
             addMessage('user', question);
             const answer = addMessage('assistant', '');
             $('input').value = '';
@@ -2003,14 +2250,20 @@
                 if (epoch !== state.epoch) return;
                 answer.status = status;
                 if (error) answer.error = error;
-                finalizeAssistant(answer);
-                setBusy(false);
-                state.ws = null
+                try {
+                    finalizeAssistant(answer)
+                } finally {
+                    setBusy(false);
+                    state.ws = null
+                }
             }
 
             socket.onopen = () => socket.send(JSON.stringify({
                 query: question,
                 source_filter: source,
+                product: product || null,
+                platform: platform || null,
+                version: version || null,
                 session_id: sid
             }));
             socket.onmessage = event => {
@@ -2095,9 +2348,9 @@
             $('import-status').hidden = true;
             $('import-status').classList.remove('warning');
             if (!file) return;
-            if (!/\.(pdf|pptx|txt)$/i.test(file.name) || !file.size || file.size > 20 * 1024 * 1024) {
+            if (!/\.(pdf|pptx|docx|txt)$/i.test(file.name) || !file.size || file.size > 20 * 1024 * 1024) {
                 $('import-status').hidden = false;
-                $('import-status').textContent = '请选择非空且不超过 20 MB 的 PDF、PPTX 或 TXT。旧版 PPT 请先另存为 PPTX。';
+                $('import-status').textContent = '请选择非空且不超过 20 MB 的 PDF、PPTX、DOCX 或 TXT。旧版 PPT、DOC 请先转换格式。';
                 $('btn-upload').disabled = true;
                 return
             }
@@ -2114,6 +2367,7 @@
                 return
             }
             state.uploading = true;
+            $('btn-upload-cancel').disabled = true;
             $('btn-upload').disabled = true;
             $('btn-upload').textContent = '正在处理…';
             $('import-status').hidden = false;
@@ -2121,6 +2375,15 @@
             $('import-status').textContent = '正在处理 ' + file.name + '（' + category(source) + '），请稍候。';
             try {
                 const params = new URLSearchParams({source, filename: file.name});
+                const metadata = {
+                    doc_title: $('upload-title').value.trim(),
+                    section: $('upload-section').value.trim(),
+                    product: $('upload-product').value,
+                    platform: $('upload-platform').value,
+                    version: $('upload-version').value,
+                    source_url: $('upload-url').value.trim()
+                };
+                for (const [key, value] of Object.entries(metadata)) if (value) params.set(key, value);
                 const response = await fetch('/api/documents?' + params, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/octet-stream'},
@@ -2143,6 +2406,7 @@
                 state.file = null;
                 $('document-file').value = '';
                 $('selected-file').textContent = '点击选择，或将文件拖到这里';
+                for (const id of ['upload-title', 'upload-section', 'upload-url']) $(id).value = '';
                 updateUploadSummary();
                 toast('资料处理完成');
                 await loadDocuments()
@@ -2151,23 +2415,26 @@
                 $('import-status').textContent = error.message || '导入失败，请重试'
             } finally {
                 state.uploading = false;
+                $('btn-upload-cancel').disabled = false;
                 $('btn-upload').disabled = !state.file;
                 $('btn-upload').textContent = '加入知识库'
             }
         }
 
         async function loadDocuments() {
+            const request = ++state.documentsRequest;
             const source = $('doc-filter').value || '';
             try {
                 const query = source ? '?source=' + encodeURIComponent(source) : '';
                 const result = await api('/api/documents' + query);
+                if (request !== state.documentsRequest) return;
                 state.documents = result.documents || [];
                 if (!source) $('document-count').textContent = state.documents.length;
                 $('doc-total').textContent = '共 ' + state.documents.length + ' 份';
                 const list = $('document-list');
                 list.replaceChildren();
                 if (!state.documents.length) {
-                    list.append(node('p', 'empty', source ? '该分类下还没有导入资料。' : '还没有导入资料。\n支持 PDF、PPTX 和 TXT，单份不超过 20 MB。'));
+                    list.append(node('p', 'empty', source ? '该分类下还没有导入资料。' : '还没有导入资料。\n支持 PDF、PPTX、DOCX 和 TXT，单份不超过 20 MB。'));
                     return
                 }
                 for (const item of state.documents) {
@@ -2206,6 +2473,7 @@
                     list.append(row)
                 }
             } catch (error) {
+                if (request !== state.documentsRequest) return;
                 $('document-list').replaceChildren(node('p', 'empty', error.message));
                 $('document-count').textContent = '—';
                 $('doc-total').textContent = ''
@@ -2231,8 +2499,11 @@
         async function bootData() {
             health();
             try {
-                const result = await api('/api/sources');
-                state.sources = result.sources || [];
+                const result = await api('/api/filters');
+                for (const item of result.sources || []) {
+                    if (item && item.key) names[item.key] = item.label || item.key
+                }
+                state.sources = (result.sources || []).map(item => item.key || item);
                 const upload = $('upload-source'), filter = $('doc-filter');
                 upload.replaceChildren();
                 filter.replaceChildren(new Option('全部资料', ''));
@@ -2240,6 +2511,7 @@
                     upload.append(new Option(category(source), source));
                     filter.append(new Option(category(source), source))
                 }
+                renderFilters(result);
                 if (state.filter && !state.sources.includes(state.filter)) state.filter = '';
                 renderScope();
                 loadSessions();
@@ -2257,6 +2529,15 @@
         }
 
         /* ---------- 事件 ---------- */
+        for (const id of ['filter-product', 'filter-platform', 'filter-version']) {
+            $(id).onchange = syncFilters
+        }
+        $('filter-clear').onclick = () => {
+            $('filter-product').value = '';
+            $('filter-platform').value = '';
+            $('filter-version').value = '';
+            syncFilters()
+        };
         $('btn-send').onclick = send;
         $('btn-new').onclick = newSession;
         $('btn-export').onclick = () => {
@@ -2267,7 +2548,7 @@
             const text = state.messages.map(message => {
                 const role = message.role === 'user' ? '我：' : '知识库助手：';
                 const sources = (message.sources || []).map(item => item.title).filter(Boolean);
-                return role + message.text + (sources.length ? '\n来源：' + sources.join('、') : '')
+                return role + stripAnswerSources(message.text) + (sources.length ? '\n来源：' + sources.join('、') : '')
             }).join('\n\n');
             const url = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'}));
             const link = document.createElement('a');

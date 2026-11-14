@@ -1,0 +1,207 @@
+[
+  {
+    "id": "E01",
+    "domain": "面单异常",
+    "question": "抖店电子面单取号失败，应该按什么顺序排查？",
+    "filters": {"platform": "抖音电商"},
+    "expected_docs": ["电子面单常见对接场景"],
+    "expected_keywords": ["取号", "店铺授权", "电子面单开通", "物流商编码", "运单号"],
+    "expected_conclusion": {"manual_review": true},
+    "ground_truth": "先确认异常在取号、打印还是物流回传阶段。取号失败时检查店铺授权、电子面单开通状态、物流商编码、收件人密文信息，以及订单是否已在其他网点取号。该文档只适用于抖音电商（抖店），不能套用到拼多多、淘宝天猫或快手。"
+  },
+  {
+    "id": "E02",
+    "domain": "面单异常",
+    "question": "抖店打印面单时打印数据为空，先检查什么？",
+    "filters": {"platform": "抖音电商"},
+    "expected_docs": ["电子面单常见对接场景"],
+    "expected_keywords": ["/logistics/waybillApply", "运单号", "打印组件"],
+    "expected_conclusion": {"manual_review": true},
+    "ground_truth": "打印数据为空时，先检查是否使用 /logistics/newCreateOrder 返回的运单号调用 /logistics/waybillApply，再检查打印组件是否正常。"
+  },
+  {
+    "id": "E03",
+    "domain": "订单同步",
+    "question": "旺店通客户端 V2.4.4 及以下能使用 trade_push.php 创建原始订单接口吗？",
+    "filters": {"product": "旺店通ERP", "version": "客户端 V2.4.4 及以下"},
+    "expected_docs": ["客户端 V2.4.4 及以下版本的接口限制（整理）"],
+    "expected_keywords": ["V2.4.5.0", "不能", "升级"],
+    "expected_conclusion": {
+      "required_terms": ["V2.4.5.0"],
+      "required_any": ["不能", "不支持", "不满足"],
+      "forbidden_patterns": ["V2\\.4\\.4[^。；\\n]{0,15}(?<!不)(?:可以|能|支持)[^。；\\n]{0,15}trade_push"]
+    },
+    "ground_truth": "不能直接套用。trade_push.php 要求客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本，不能直接使用该接口文档的字段和调用方式，应优先建议升级到满足要求的版本。"
+  },
+  {
+    "id": "E04",
+    "domain": "订单同步",
+    "question": "旺店通客户端 V2.4.5.0 使用创建原始订单接口，适用条件和调用建议是什么？",
+    "filters": {"product": "旺店通ERP", "version": "客户端 V2.4.5.0"},
+    "expected_docs": ["trade_push.php（创建原始订单）"],
+    "expected_keywords": ["自有平台", "5 到 10 分钟", "50 条"],
+    "expected_conclusion": {
+      "required_terms": ["V2.4.5.0", "自有平台"],
+      "forbidden_terms": ["所有平台", "任意平台"]
+    },
+    "ground_truth": "trade_push.php 适用于客户端 V2.4.5.0 及以上，仅支持推送自有平台店铺的订单；建议每 5 到 10 分钟集中推送一次，单次请求不超过 50 条订单。"
+  },
+  {
+    "id": "E05",
+    "domain": "库存差异",
+    "question": "旺店通库存同步查询接口要求哪个版本，查询和回写是什么关系？",
+    "filters": {"product": "旺店通ERP", "version": "客户端 V2.4.5.0"},
+    "expected_docs": ["api_goods_stock_change_query.php（查询库存同步）"],
+    "expected_keywords": ["V2.4.5.0", "成对", "回写"],
+    "expected_conclusion": {"manual_review": true},
+    "ground_truth": "库存同步查询接口要求客户端 V2.4.5.0 及以上。查询同步库存必须与库存同步回写两个接口配合使用，才能完成一次完整的库存同步；只调用其中一个接口不会闭环。"
+  },
+  {
+    "id": "E06",
+    "domain": "库存差异",
+    "question": "库存同步时平台没有同步成功却回写了成功，会有什么后果？",
+    "filters": {"product": "旺店通ERP"},
+    "expected_docs": ["api_goods_stock_change_query.php（查询库存同步）"],
+    "expected_keywords": ["长期不一致", "无法再次获取", "实际同步结果"],
+    "expected_conclusion": {"manual_review": true},
+    "ground_truth": "如果平台库存没有同步成功却回写成功，后续可能无法再次获取该库存变化记录，表现为 ERP 与平台库存长期不一致。回写状态必须以平台实际同步结果为准，不能提前回写成功。"
+  },
+  {
+    "id": "E07",
+    "domain": "订单同步",
+    "question": "销售出库单查询接口支持淘宝和拼多多的订单吗？",
+    "filters": {"product": "旺店通ERP"},
+    "expected_docs": ["stockout_order_query_trade.php（查询销售出库单）"],
+    "expected_keywords": ["不返回", "淘系", "拼多多", "奇门"],
+    "expected_conclusion": {
+      "required_terms": ["拼多多"],
+      "required_any": ["不返回", "不支持"],
+      "forbidden_patterns": ["(?<!不)(?:支持|可以查询|能查询)[^。；\\n]{0,4}拼多多"]
+    },
+    "ground_truth": "不支持。该接口不返回淘系、拼多多及系统供销平台订单数据；淘系订单需要通过奇门协议获取，拼多多订单需要自行对接平台获取，不能据此判断订单丢失。"
+  },
+  {
+    "id": "E08",
+    "domain": "面单异常",
+    "question": "拼多多电子面单接入前要完成哪些准备？",
+    "filters": {"platform": "拼多多"},
+    "expected_docs": ["电子面单接入指南"],
+    "expected_keywords": ["pdd.waybill.search", "订购关系", "发货地址", "余额"],
+    "expected_conclusion": {"manual_review": true},
+    "ground_truth": "先用 pdd.waybill.search 获取商家电子面单开通情况和账户余额；商家需在拼多多商家后台申请，经快递公司网点审核后开通并按线下约定充值。取号使用的发货地址必须与订购关系中的发货地址完全一致。"
+  },
+  {
+    "id": "E09",
+    "domain": "库存差异",
+    "question": "网页版库存查询接口能查哪些库存数据，和客户端接口有什么区别？",
+    "filters": {"product": "旺店通ERP", "version": "网页版"},
+    "expected_docs": ["stock_query.php（查询库存成本 可用库存数据）"],
+    "expected_keywords": ["库存成本", "可用库存", "网页版", "客户端"],
+    "expected_conclusion": {
+      "required_terms": ["网页版", "客户端"],
+      "forbidden_terms": ["网页版和客户端是同一个接口", "和客户端接口一样"]
+    },
+    "ground_truth": "stock_query.php 用于查询旺店通 ERP 的库存成本和可用库存数据，适用版本为网页版。它与客户端版本的库存同步查询接口不是同一个接口，网页版用本接口，客户端用库存同步查询接口。"
+  },
+  {
+    "id": "E10",
+    "domain": "订单同步",
+    "question": "订单一直同步不过来",
+    "filters": {},
+    "expected_clarification": true,
+    "expected_keywords": ["平台", "报错", "错误码"],
+    "ground_truth": "缺少平台/店铺和报错原文或错误码，应先追问一个最具体的问题，不应直接给通用排查步骤。"
+  },
+  {
+    "id": "E11",
+    "domain": "库存差异",
+    "question": "库存对不上",
+    "filters": {},
+    "expected_clarification": true,
+    "expected_keywords": ["可用库存", "锁定库存", "在途"],
+    "ground_truth": "缺少差异类型，应先确认是可用库存、锁定库存还是在途库存。"
+  },
+  {
+    "id": "E12",
+    "domain": "面单异常",
+    "question": "拼多多电子面单取号返回错误码 E202 是什么意思？",
+    "filters": {"platform": "拼多多"},
+    "expected_insufficient": true,
+    "expected_keywords": ["资料不足", "E202"],
+    "ground_truth": "现有公开资料只列出拼多多电子面单的常见报错文案，没有 E202 的错误码对照，应明确说明资料不足，并指出还缺错误码对照文档或完整报错文案。"
+  },
+  {
+    "id": "E13",
+    "domain": "订单同步",
+    "question": "旺店通客户端 V2.4.6.6 能使用 trade_push.php 创建原始订单接口吗？",
+    "filters": {"product": "旺店通ERP", "version": "客户端 V2.4.6.6"},
+    "expected_docs": ["trade_push.php（创建原始订单）"],
+    "expected_keywords": ["V2.4.5.0", "自有平台"],
+    "expected_conclusion": {
+      "required_terms": ["V2.4.5.0"],
+      "required_any": ["可以", "支持", "能"],
+      "forbidden_terms": ["不能使用", "不支持"]
+    },
+    "ground_truth": "可以使用。trade_push.php 要求客户端 V2.4.5.0 及以上，V2.4.6.6 高于最低要求；但仍只支持推送自有平台店铺订单。"
+  },
+  {
+    "id": "E14",
+    "domain": "库存差异",
+    "question": "旺店通客户端 V2.4.4 及以下能使用库存同步查询接口吗？",
+    "filters": {"product": "旺店通ERP", "version": "客户端 V2.4.4 及以下"},
+    "expected_docs": ["客户端 V2.4.4 及以下版本的接口限制（整理）"],
+    "expected_keywords": ["V2.4.5.0", "不能", "升级"],
+    "expected_conclusion": {
+      "required_terms": ["V2.4.5.0"],
+      "required_any": ["不能", "不支持", "不满足"],
+      "forbidden_patterns": ["V2\\.4\\.4[^。；\\n]{0,15}(?<!不)(?:可以|能|支持)"]
+    },
+    "ground_truth": "不能。库存同步查询接口要求客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本；应先确认完整版本号，并优先建议升级。"
+  },
+  {
+    "id": "E15",
+    "domain": "面单异常",
+    "question": "抖店电子面单取号失败，能用拼多多的电子面单文档排查吗？",
+    "filters": {"platform": "抖音电商"},
+    "expected_docs": ["电子面单常见对接场景"],
+    "expected_keywords": ["不能", "抖店", "拼多多"],
+    "expected_conclusion": {
+      "required_terms": ["拼多多"],
+      "required_any": ["不能", "不支持", "不要"],
+      "forbidden_patterns": ["(?<!不)(?:可以|能|支持)[^。；\\n]{0,10}(?:套用|使用)[^。；\\n]{0,10}拼多多"]
+    },
+    "ground_truth": "不能直接套用。抖店和拼多多的电子面单接口、字段和开通流程不同，应按抖音电商平台的文档排查，不能把拼多多文档当作抖店的依据。"
+  },
+  {
+    "id": "E16",
+    "domain": "订单同步",
+    "question": "旺店通所有客户端版本都支持 trade_push.php 创建原始订单接口，对吗？",
+    "filters": {"product": "旺店通ERP"},
+    "expected_docs": ["客户端 V2.4.4 及以下版本的接口限制（整理）", "trade_push.php（创建原始订单）"],
+    "expected_keywords": ["V2.4.5.0", "不是", "及以上"],
+    "expected_conclusion": {
+      "required_terms": ["V2.4.5.0"],
+      "required_any": ["不是", "不对", "不能"],
+      "forbidden_terms": ["所有版本都支持", "V2.4.4 及以下也支持"]
+    },
+    "ground_truth": "这个前提不对。trade_push.php 只适用于客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本，不能直接用高版本接口文档指导低版本客户。"
+  },
+  {
+    "id": "E17",
+    "domain": "面单异常",
+    "question": "快手电子面单取号返回错误码 K202 是什么原因？",
+    "filters": {},
+    "expected_insufficient": true,
+    "expected_keywords": ["资料不足", "K202"],
+    "ground_truth": "现有公开资料不覆盖快手电子面单，也没有 K202 的错误码对照，应说明资料不足，并指出还缺快手平台文档或完整报错文案。"
+  },
+  {
+    "id": "E18",
+    "domain": "面单异常",
+    "question": "面单打不出来",
+    "filters": {},
+    "expected_clarification": true,
+    "expected_keywords": ["平台", "打印"],
+    "ground_truth": "缺少平台和异常阶段，应先确认是哪个平台的电子面单，以及卡在取号、打印还是物流回传。"
+  }
+]

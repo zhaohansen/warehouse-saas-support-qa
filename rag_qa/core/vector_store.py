@@ -19,6 +19,7 @@ rag_qa_path = os.path.abspath(os.path.dirname(local_path))
 project_root = os.path.dirname(rag_qa_path)
 sys.path.insert(0, project_root)
 
+from rag_qa.core.doc_metadata import build_filter_expression, filter_documents_by_version
 from base.config import Config
 from base.logger import logger
 
@@ -26,7 +27,8 @@ conf = Config()
 
 # 检索命中后需要回填的字段；服务端混合检索与本地融合共用同一份清单。
 OUTPUT_FIELDS = ["text", "parent_id", "parent_content", "source", "timestamp", "filename", "file_path",
-                 "page", "slide"]
+                 "page", "slide", "doc_title", "section", "product", "platform", "version", "doc_type",
+                 "source_url", "updated_at"]
 # 客户端融合（RRF）的平滑常数，取自常用的 Reciprocal Rank Fusion 取值。
 RRF_K = 60
 
@@ -156,6 +158,14 @@ class VectorStore:
             schema.add_field(field_name="parent_content", datatype=DataType.VARCHAR, max_length=65535)
             schema.add_field(field_name="source", datatype=DataType.VARCHAR, max_length=50)
             schema.add_field(field_name="timestamp", datatype=DataType.VARCHAR, max_length=50)
+            schema.add_field(field_name="doc_title", datatype=DataType.VARCHAR, max_length=512)
+            schema.add_field(field_name="section", datatype=DataType.VARCHAR, max_length=256)
+            schema.add_field(field_name="product", datatype=DataType.VARCHAR, max_length=80)
+            schema.add_field(field_name="platform", datatype=DataType.VARCHAR, max_length=80)
+            schema.add_field(field_name="version", datatype=DataType.VARCHAR, max_length=160)
+            schema.add_field(field_name="doc_type", datatype=DataType.VARCHAR, max_length=50)
+            schema.add_field(field_name="source_url", datatype=DataType.VARCHAR, max_length=1024)
+            schema.add_field(field_name="updated_at", datatype=DataType.VARCHAR, max_length=80)
             index_params = self.client.prepare_index_params()
             index_params.add_index(
                 field_name="dense_vector",
@@ -214,7 +224,15 @@ class VectorStore:
                 "file_path": doc.metadata.get("file_path", ""),
                 "filename": doc.metadata.get("filename") or os.path.basename(doc.metadata.get("file_path", "")),
                 "page": doc.metadata.get("page"),
-                "slide": doc.metadata.get("slide")
+                "slide": doc.metadata.get("slide"),
+                "doc_title": doc.metadata.get("doc_title", ""),
+                "section": doc.metadata.get("section", ""),
+                "product": doc.metadata.get("product", ""),
+                "platform": doc.metadata.get("platform", ""),
+                "version": doc.metadata.get("version", ""),
+                "doc_type": doc.metadata.get("doc_type", ""),
+                "source_url": doc.metadata.get("source_url", ""),
+                "updated_at": doc.metadata.get("updated_at", "")
             })
 
         if data:
@@ -280,12 +298,14 @@ class VectorStore:
         self.client.delete(collection_name=self.collection_name, filter=expression)
 
     @serialized_model
-    def hybrid_search_with_rerank(self, query, k=conf.RETRIEVAL_K, source_filter=None, rerank_query=None):
+    def hybrid_search_with_rerank(self, query, k=conf.RETRIEVAL_K, source_filter=None, rerank_query=None,
+                                  filters=None):
         """
         该函数用于执行: 混合检索(稠密 + 稀疏向量) + 结果重排序, 返回精准父文档
-        :param query: 用户查询文本, 例如: '新员工如何申请办公设备？'
+        :param query: 用户查询文本
         :param k: 混合检索返回的TopK子块数量
-        :param source_filter: 资料分类过滤条件, 例如: onboarding, 仅检索该分类的文档, 默认None不过滤.
+        :param source_filter: 资料分类过滤条件
+        :param filters: 业务筛选，支持 product / platform / version
         :return: 重排序后的Top-M个父文档列表(M是从conf中获取的)
         """
         # 来源过滤统一校验，避免未经校验的字符串拼进 Milvus 表达式。
@@ -293,12 +313,16 @@ class VectorStore:
             source_filter = str(source_filter).strip()
             if source_filter not in conf.VALID_SOURCES:
                 raise ValueError("无效的资料分类过滤条件")
+        filters = filters or {}
+        version_filter = str(filters.get('version') or '').strip()
 
         # 候选召回数量与最终上下文数量分别控制。
-        # 多个命中的子块可能都来自同一张相关性较弱的幻灯片。
+        # 版本是“及以上/及以下”的自然语言区间，先多召回，再在本地按区间过滤。
         recall_k = max(k, conf.RECALL_CANDIDATES)
+        if version_filter:
+            recall_k = min(200, recall_k * 3)
         dense_query_vector, sparse_query_vector = self._query_vectors(query)
-        filter_expr = f"source == '{source_filter}'" if source_filter else ""
+        filter_expr = build_filter_expression(source_filter, filters)
 
         if self.hybrid_mode == 'native':
             # 权重逻辑: 稠密向量侧重语义相似度, 稀疏向量侧重关键词匹配, 取值范围由配置控制.
@@ -341,6 +365,12 @@ class VectorStore:
 
         # 从子块中提取去重的父文档 -> 避免同一父块的多个子块重复返回.
         parent_docs = self._get_unique_parent_docs(sub_chunks)
+        if version_filter:
+            # 保留“完全覆盖”和“部分覆盖”的资料；后者在 context 中必须说明附加条件，
+            # “多版本对照”只证明可用于比较，不进入逐条适用的上下文。
+            parent_docs = filter_documents_by_version(parent_docs, version_filter)
+            if not parent_docs:
+                logger.info('版本筛选 %s 后没有可用资料', version_filter)
 
         return self.rerank_documents(rerank_query or query, parent_docs)
 
@@ -422,7 +452,15 @@ class VectorStore:
                 "file_path": hit.get("file_path"),
                 "filename": hit.get("filename"),
                 "page": hit.get("page"),
-                "slide": hit.get("slide")
+                "slide": hit.get("slide"),
+                "doc_title": hit.get("doc_title", ""),
+                "section": hit.get("section", ""),
+                "product": hit.get("product", ""),
+                "platform": hit.get("platform", ""),
+                "version": hit.get("version", ""),
+                "doc_type": hit.get("doc_type", ""),
+                "source_url": hit.get("source_url", ""),
+                "updated_at": hit.get("updated_at", "")
             }
         )
 
@@ -435,7 +473,7 @@ if __name__ == '__main__':
     total = 0
     try:
         for source in conf.VALID_SOURCES:
-            directory_path = os.path.join(conf.DATA_DIR, f'{source}_data')
+            directory_path = os.path.join(conf.DATA_DIR, source)
             if not os.path.isdir(directory_path):
                 print(f'资料目录不存在，跳过：{directory_path}')
                 continue

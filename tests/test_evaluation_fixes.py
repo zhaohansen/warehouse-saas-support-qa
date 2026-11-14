@@ -147,7 +147,7 @@ class EvaluationFixTests(unittest.TestCase):
             def __init__(self):
                 self.calls = []
 
-            def generate_answer_stream(self, question, history=None, on_context=None):
+            def generate_answer_stream(self, question, history=None, on_context=None, filters=None):
                 self.calls.append(question)
                 if on_context:
                     on_context([])

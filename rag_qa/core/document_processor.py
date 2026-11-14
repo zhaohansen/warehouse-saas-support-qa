@@ -16,9 +16,11 @@ for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(errors="replace")
 from langchain_community.document_loaders import TextLoader
+from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownTextSplitter
 from datetime import datetime
 from rag_qa.text_splitters import ChineseRecursiveTextSplitter
+from rag_qa.core.doc_metadata import INDEX_FIELDS, parse_metadata_header
 from base.config import Config
 from base.logger import logger
 
@@ -59,6 +61,30 @@ def _file_key(file_path):
     return hashlib.sha1(os.path.abspath(os.fspath(file_path)).encode('utf-8')).hexdigest()[:10]
 
 
+def _sidecar_metadata(file_path):
+    """读取网页上传时保存的元数据（产品/平台/版本等）。"""
+    name = os.path.basename(os.fspath(file_path))
+    if not _UPLOAD_NAME.fullmatch(name):
+        return {}
+    sidecar = os.path.join(os.path.dirname(os.fspath(file_path)), '.' + name + '.json')
+    try:
+        with open(sidecar, encoding='utf-8') as stream:
+            record = json.load(stream)
+        if isinstance(record, dict):
+            return {key: record[key] for key in INDEX_FIELDS if record.get(key)}
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def _load_text_document(file_path):
+    """文本资料先拆出“文档元数据”头，再把正文交给切分器。"""
+    with open(file_path, encoding='utf-8-sig') as stream:
+        raw = stream.read()
+    metadata, body = parse_metadata_header(raw)
+    return [Document(page_content=body, metadata=metadata)]
+
+
 def load_document_file(file_path, source):
     """加载单个文件；发生错误时向外抛出，避免上传失败却显示成功。"""
     file_path = os.fspath(file_path)
@@ -67,15 +93,21 @@ def load_document_file(file_path, source):
         raise ValueError(f"旧版 {extension} 不受支持，请另存为 .{'pptx' if extension == '.ppt' else 'docx'}")
     if extension not in document_loaders:
         raise ValueError("不支持的文件格式")
-    loader_class = document_loaders[extension]
-    if isinstance(loader_class, tuple):
-        module_name, class_name = loader_class
-        loader_class = getattr(import_module(module_name), class_name)
-    loader = (loader_class(file_path, encoding="utf-8")
-              if extension in (".txt", ".md") else loader_class(file_path))
-    documents = loader.load()
+    if extension in (".txt", ".md"):
+        documents = _load_text_document(file_path)
+    else:
+        loader_class = document_loaders[extension]
+        if isinstance(loader_class, tuple):
+            module_name, class_name = loader_class
+            loader_class = getattr(import_module(module_name), class_name)
+        documents = loader_class(file_path).load()
     filename = original_filename(file_path)
+    sidecar = _sidecar_metadata(file_path)
     for doc in documents:
+        header = {key: doc.metadata[key] for key in INDEX_FIELDS if doc.metadata.get(key)}
+        merged = dict(header)
+        merged.update(sidecar)
+        doc.metadata.update(merged)
         doc.metadata.update(source=source, file_path=file_path, filename=filename,
                             timestamp=datetime.now().isoformat())
     return documents
@@ -104,7 +136,7 @@ def load_documents_from_directory(directory_path):
     """
     documents = []
     supported_extensions = document_loaders.keys()
-    source = os.path.basename(directory_path).replace('_data', '')
+    source = os.path.basename(directory_path).replace('_data', '') or os.path.basename(directory_path)
     for root, dirs, files in os.walk(directory_path):
         # uploads 是网页导入后的哈希副本；批量建库只扫描正式资料，避免同一文件被重复入库。
         dirs[:] = [name for name in dirs if name != 'uploads']
@@ -185,7 +217,7 @@ def split_loaded_documents(documents, parent_chunk_size=conf.PARENT_CHUNK_SIZE,
 
 if __name__ == '__main__':
 
-    chunks = process_documents(os.path.join(conf.DATA_DIR, 'onboarding_data'), conf.PARENT_CHUNK_SIZE,
+    chunks = process_documents(os.path.join(conf.DATA_DIR, 'product_docs'), conf.PARENT_CHUNK_SIZE,
                                conf.CHILD_CHUNK_SIZE, conf.CHUNK_OVERLAP)
     print(f'切分完成的子块总数: {len(chunks)}')
     print(f'前1个子块详情: {chunks[0] if chunks else "未切分到任何子块"}')

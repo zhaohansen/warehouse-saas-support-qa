@@ -59,12 +59,12 @@ class DocumentImporter:
             except zipfile.BadZipFile as exc:
                 raise ImportValidationError(f"文件不是有效的 {extension[1:].upper()}") from exc
 
-    def import_file(self, upload_path, source, filename):
+    def import_file(self, upload_path, source, filename, metadata=None):
         extension = self.validate(source, filename)
         upload_path = Path(upload_path)
         self._validate_content(upload_path, extension)
         digest = hashlib.sha256(upload_path.read_bytes()).hexdigest()
-        directory = (self.data_dir / (source + '_data') / 'uploads').resolve()
+        directory = (self.data_dir / source / 'uploads').resolve()
         if not directory.is_relative_to(self.data_dir):
             raise ImportValidationError("资料分类目录无效")
         destination = directory / (digest + extension)
@@ -86,7 +86,13 @@ class DocumentImporter:
                     "未提取到文字，请确认文件包含可读取或可识别的内容；"
                     "若 PPT 含 WMF/EMF 等矢量图片，请先转为 PNG/JPG，或另存为 PDF 后重试。"
                 )
+            extra_metadata = {key: value for key, value in (metadata or {}).items()
+                              if key in ('doc_title', 'section', 'product', 'platform', 'version',
+                                         'doc_type', 'source_url', 'updated_at', 'authorization')
+                              and isinstance(value, str) and value.strip()}
             for doc in documents:
+                doc.metadata.update(extra_metadata)
+                doc.metadata.setdefault('doc_title', filename)
                 doc.metadata.update(source=source, file_path=str(destination), filename=filename)
             directory.mkdir(parents=True, exist_ok=True)
             pending = directory / ('.' + digest + '.pending')
@@ -107,8 +113,12 @@ class DocumentImporter:
                     rollback_documents = list(documents)
                     for offset in range(0, len(documents), self.batch_size):
                         self.vector_store.add_documents(documents[offset:offset + self.batch_size])
-                record = dict(filename=filename, source=source, chunks=len(documents), warnings=warnings,
-                              size=upload_path.stat().st_size, imported_at=time.time())
+                record = {key: documents[0].metadata[key]
+                          for key in ('doc_title', 'product', 'platform', 'version')
+                          if documents[0].metadata.get(key)}
+                record.update(filename=filename, source=source, chunks=len(documents), warnings=warnings,
+                              size=upload_path.stat().st_size, imported_at=time.time(),
+                              **extra_metadata)
                 metadata_path.write_text(json.dumps(record, ensure_ascii=False), encoding='utf-8')
                 os.replace(pending, destination)
             except Exception:
@@ -141,7 +151,7 @@ class DocumentImporter:
             raise ImportValidationError('请选择有效的资料分类')
         if not isinstance(document_id, str) or not re.fullmatch(r'[0-9a-f]{64}\.(?:pdf|pptx|docx|txt)', document_id):
             raise ImportValidationError('资料标识无效')
-        directory = (self.data_dir / (source + '_data') / 'uploads').resolve()
+        directory = (self.data_dir / source / 'uploads').resolve()
         if not directory.is_relative_to(self.data_dir):
             raise ImportValidationError('资料分类目录无效')
         path = directory / document_id
@@ -160,14 +170,19 @@ class DocumentImporter:
             raise ImportValidationError('请选择有效的资料分类')
         documents = []
         for category in sorted(self.valid_sources if not source else {source}):
-            directory = self.data_dir / (category + '_data') / 'uploads'
+            directory = self.data_dir / category / 'uploads'
             if not directory.is_dir(): continue
             for path in directory.iterdir():
                 if path.name.startswith(
                         '.') or path.suffix.lower() not in self.ALLOWED_EXTENSIONS or not path.is_file(): continue
                 record = self._read_metadata(path.with_name('.' + path.name + '.json'))
+                try:
+                    stat = path.stat()
+                except FileNotFoundError:
+                    continue  # 读取列表期间，文件可能已被删除。
                 documents.append(dict(id=path.name, filename=record.get('filename', path.name), source=category,
-                                      size=path.stat().st_size, chunks=record.get('chunks'),
-                                      imported_at=record.get('imported_at', path.stat().st_mtime),
-                                      warnings=record.get('warnings', [])))
+                                      size=stat.st_size, chunks=record.get('chunks'),
+                                      imported_at=record.get('imported_at', stat.st_mtime),
+                                      product=record.get('product', ''), platform=record.get('platform', ''),
+                                      version=record.get('version', ''), warnings=record.get('warnings', [])))
         return sorted(documents, key=lambda row: row['imported_at'], reverse=True)[:200]

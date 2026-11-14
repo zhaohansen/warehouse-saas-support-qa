@@ -57,15 +57,15 @@ class MySQLClient:
             return _in_scope(records)
 
     def _detect_source_doc(self):
-        """探测 jpkb 是否已有 source_doc 列；探测失败不影响 MySQL 连接。"""
+        """探测 faq 表是否已有 source_doc 列；探测失败不影响 MySQL 连接。"""
         if self._has_source_doc is None:
             try:
                 self.cursor.execute(
                     "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=%s "
-                    "AND TABLE_NAME='jpkb' AND COLUMN_NAME='source_doc'", (Config.mysql_db,))
+                    "AND TABLE_NAME='faq' AND COLUMN_NAME='source_doc'", (Config.mysql_db,))
                 self._has_source_doc = bool(self.cursor.fetchone()[0])
             except Exception:
-                logger.warning('检测 jpkb.source_doc 列失败，按旧表结构读取', exc_info=True)
+                logger.warning('检测 faq.source_doc 列失败，按旧表结构读取', exc_info=True)
                 self._has_source_doc = False
         return self._has_source_doc
 
@@ -75,14 +75,14 @@ class MySQLClient:
                 try:
                     self.conn.ping(reconnect=True)
                     if self._detect_source_doc():
-                        self.cursor.execute('SELECT subject_name,question,answer,source_doc FROM jpkb')
+                        self.cursor.execute('SELECT source,question,answer,source_doc FROM faq')
                         records = _in_scope([
                             dict(source=self._subject(s), question=q.strip(), answer=a.strip(),
                                  source_doc=(d or '').strip())
                             for s,q,a,d in self.cursor.fetchall() if q and a
                         ])
                     else:
-                        self.cursor.execute('SELECT subject_name,question,answer FROM jpkb')
+                        self.cursor.execute('SELECT source,question,answer FROM faq')
                         records = _in_scope([
                             dict(source=self._subject(s), question=q.strip(), answer=a.strip(), source_doc='')
                             for s,q,a in self.cursor.fetchall() if q and a
@@ -110,23 +110,23 @@ class MySQLClient:
         with self.lock:
             if self.cursor is None:
                 raise RuntimeError('MySQL 不可用，无法建表或补齐字段')
-            self.cursor.execute('''CREATE TABLE IF NOT EXISTS jpkb(
-                id INT AUTO_INCREMENT PRIMARY KEY,subject_name VARCHAR(100),
+            self.cursor.execute('''CREATE TABLE IF NOT EXISTS faq(
+                id INT AUTO_INCREMENT PRIMARY KEY,source VARCHAR(100),
                 question TEXT,answer TEXT,
                 source_doc VARCHAR(512) DEFAULT '') CHARACTER SET utf8mb4''')
             self.cursor.execute(
                 "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=%s "
-                "AND TABLE_NAME='jpkb' AND COLUMN_NAME='source_doc'", (Config.mysql_db,))
+                "AND TABLE_NAME='faq' AND COLUMN_NAME='source_doc'", (Config.mysql_db,))
             if not self.cursor.fetchone()[0]:
                 try:
-                    self.cursor.execute("ALTER TABLE jpkb ADD COLUMN source_doc VARCHAR(512) DEFAULT ''")
+                    self.cursor.execute("ALTER TABLE faq ADD COLUMN source_doc VARCHAR(512) DEFAULT ''")
                 except pymysql.err.OperationalError as exc:
                     # 并发初始化时可能已被其他进程补列，1060 可安全忽略。
                     if not exc.args or exc.args[0] != 1060: raise
             self._has_source_doc = True
 
     def _existing(self, source, question):
-        self.cursor.execute('SELECT id FROM jpkb WHERE subject_name=%s AND question=%s LIMIT 1',
+        self.cursor.execute('SELECT id FROM faq WHERE source=%s AND question=%s LIMIT 1',
                             (source, question))
         return self.cursor.fetchone() is not None
 
@@ -142,7 +142,7 @@ class MySQLClient:
                     skipped += 1
                     continue
                 self.cursor.execute(
-                    'INSERT INTO jpkb(subject_name,question,answer,source_doc) VALUES(%s,%s,%s,%s)',
+                    'INSERT INTO faq(source,question,answer,source_doc) VALUES(%s,%s,%s,%s)',
                     (r['source'], r['question'], r['answer'], r.get('source_doc', '')))
                 inserted += 1
             return dict(csv_rows=len(records), inserted=inserted, skipped=skipped)
@@ -155,21 +155,21 @@ class MySQLClient:
             records = self._csv_records()
             self.cursor.execute(
                 "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s "
-                "AND TABLE_NAME='jpkb'", (Config.mysql_db,))
+                "AND TABLE_NAME='faq'", (Config.mysql_db,))
             if not self.cursor.fetchone()[0]:
                 return records, 0
             pending = [r for r in records if not self._existing(r['source'], r['question'])]
             return pending, len(records) - len(pending)
 
-    def enterprise_counts(self):
+    def source_counts(self):
         with self.lock:
             if self.cursor is None:
-                raise RuntimeError('MySQL 不可用，无法统计企业分类记录')
+                raise RuntimeError('MySQL 不可用，无法统计资料分类记录')
             sources = list(Config.VALID_SOURCES)
             placeholders = ','.join(['%s'] * len(sources))
             self.cursor.execute(
-                f'SELECT subject_name,COUNT(*) FROM jpkb WHERE subject_name IN ({placeholders}) '
-                'GROUP BY subject_name', tuple(sources))
+                f'SELECT source,COUNT(*) FROM faq WHERE source IN ({placeholders}) '
+                'GROUP BY source', tuple(sources))
             return {str(name): int(count) for name, count in self.cursor.fetchall()}
 
     def close(self):

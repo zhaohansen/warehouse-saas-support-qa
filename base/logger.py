@@ -8,7 +8,7 @@ import tempfile
 
 project_root = Path(__file__).resolve().parent.parent
 log_file = project_root / Config.log_file
-logger = logging.getLogger('enterprise-knowledge-qa')
+logger = logging.getLogger('warehouse-saas-support-qa')
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
@@ -30,7 +30,7 @@ if not logger.handlers:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
     except OSError:
-        fallback_dir = Path(tempfile.gettempdir()) / "enterprise-knowledge-qa"
+        fallback_dir = Path(tempfile.gettempdir()) / "warehouse-saas-support-qa"
         fallback_dir.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(fallback_dir / "app.log", encoding='utf-8')
     file_handler.setFormatter(formatter)

@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
             if isinstance(direct, Exception): raise direct
             return direct
         def rerank(q, docs): events.append(('rerank', docs)); return docs
-        def augment(q, source_filter=None): events.append(('enhanced', source_filter)); return enhanced or []
+        def augment(q, source_filter=None, filters=None): events.append(('enhanced', source_filter)); return enhanced or []
         obj = types.SimpleNamespace(
             strategy_selector=types.SimpleNamespace(select_strategy=select),
             query_classifier=types.SimpleNamespace(predict_category=lambda q: category),

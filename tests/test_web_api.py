@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 import types
 import unittest
 from unittest.mock import patch
@@ -15,6 +16,9 @@ class FakeQA:
     def __init__(self, ready=True):
         self.vector_store = object() if ready else None
         self.config = types.SimpleNamespace(VALID_SOURCES=['python'])
+    def _build_filters(self, product, platform, version):
+        return {key: value for key, value in
+                (('product', product), ('platform', platform), ('version', version)) if value}
     def list_sessions(self, limit): return []
     def query(self, query, **kwargs):
         yield '模拟回答', True
@@ -27,11 +31,11 @@ class FakeImporter:
     def list_documents(self, source): return [{'id': 'example', 'source': 'python'}]
 
 class WebTests(unittest.TestCase):
-    def make_client(self, ready=True):
+    def make_client(self, ready=True, qa_factory=None):
         env = patch.dict(os.environ, {'QA_ACCESS_TOKEN': 'test-token'})
         env.start()
         self.addCleanup(env.stop)
-        client = TestClient(web.create_app(qa_factory=lambda: FakeQA(ready),
+        client = TestClient(web.create_app(qa_factory=qa_factory or (lambda: FakeQA(ready)),
                                           importer_factory=lambda qa: FakeImporter()))
         self.addCleanup(client.close)
         client.__enter__()
@@ -63,6 +67,39 @@ class WebTests(unittest.TestCase):
             messages = [socket.receive_json(), socket.receive_json(), socket.receive_json()]
         self.assertEqual([message['type'] for message in messages], ['start', 'token', 'end'])
         self.assertEqual(messages[1]['token'], '模拟回答')
+
+    def test_disconnected_stream_closes_generator_after_worker_exits(self):
+        running, cancelled, release, closed = (threading.Event() for _ in range(4))
+
+        class PausedQA(FakeQA):
+            def query(self, query, cancel_event, **kwargs):
+                def generate():
+                    try:
+                        yield '第一段', False
+                        running.set()
+                        if cancel_event.wait(2):
+                            cancelled.set()
+                        release.wait(2)
+                        yield '未发送的部分', False
+                    finally:
+                        closed.set()
+                self.generator = generate()
+                return self.generator
+
+        qa = PausedQA()
+        client = self.make_client(qa_factory=lambda: qa)
+        with client.websocket_connect('/api/stream', headers={'Authorization': 'Bearer test-token'}) as socket:
+            socket.send_json({'query': '测试流式取消'})
+            self.assertEqual(socket.receive_json()['type'], 'start')
+            self.assertEqual(socket.receive_json()['type'], 'token')
+            self.assertTrue(running.wait(2))
+            socket.close()
+            try:
+                self.assertTrue(cancelled.wait(2))
+                self.assertFalse(closed.is_set())
+            finally:
+                release.set()
+            self.assertTrue(closed.wait(2))
 
     def test_websocket_keeps_multiple_tokens_and_sources(self):
         class ChunkedQA(FakeQA):

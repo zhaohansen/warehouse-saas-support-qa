@@ -7,7 +7,8 @@ INSUFFICIENT_MARKERS = ('资料中未提及', '资料未提及', '资料不足',
                         '没有相关', '缺少对应资料', '无法确认', '不能确认', '未说明', '缺少依据')
 # 明确的无依据推断/猜测信号，用于区分“说明资料不足”和“资料不足后又给出结论”。
 _REFUSAL_MARKERS = ('未提及', '没有提到', '未说明', '无法', '不能确认', '不确定', '不猜测', '不会猜测',
-                    '缺少', '没有相关', '未找到', '不详', '需确认', '待确认', '资料不足', '无法依据')
+                    '缺少', '没有相关', '未找到', '不详', '需确认', '待确认', '资料不足', '无法依据',
+                    '未出现', '不包含', '不含', '未列出', '没有列出', '未给出', '没有给出')
 # 具体金额、天数、时限等可核验结论。中文数字也纳入，避免“五百元”绕过规则。
 _NUMBER_CLAIM = re.compile(
     r'(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百千万亿]+)\s*'
@@ -20,6 +21,25 @@ _SPECULATION_MARKERS = ('可能', '也许', '大概', '大约', '估计', '推�
                         '通常', '一般来说', '应该是', '应为', '据我', '我认为')
 # 明确否定该数字时，不把数字当成回答给出的结论，但标为待复核。
 _NEGATION_MARKERS = ('不是', '并非', '不代表', '不一定', '错误', '不正确', '不能说明')
+
+
+_METADATA_MARKERS = ('原文链接', '文档更新时间', '章节', '版本为', '版本：', '产品：', '平台：',
+                     '来源', 'http://', 'https://')
+
+
+def _is_metadata_sentence(sentence):
+    """引用来源、版本和更新时间里的日期/数字不是回答给出的结论。"""
+    return any(marker in sentence for marker in _METADATA_MARKERS)
+
+
+def _has_bare_number(sentence):
+    """只把独立的数量表述当作潜在结论；错误码、日期和引用编号不算。"""
+    text = re.sub(r'^\s*\d+[.、)]\s*', '', sentence)
+    text = re.sub(r'\[[^\]]*\]', '', text)
+    text = re.sub(r'(?:错误码|状态码|code)\s*[:：]?\s*[A-Za-z0-9_-]+', '', text, flags=re.I)
+    text = re.sub(r'[A-Za-z]+[-_]?\d+[A-Za-z0-9_-]*', '', text)
+    text = re.sub(r'\d{4}[-/年]\d{1,2}(?:[-/月]\d{1,2}日?)?', '', text)
+    return bool(re.search(r'(?<![A-Za-z0-9])\d+(?:\.\d+)?(?![A-Za-z0-9])', text))
 
 
 def assess_insufficient_answer(answer):
@@ -56,7 +76,7 @@ def assess_insufficient_answer(answer):
                 unclear.extend(match.group(0) for match in numbers)
             else:
                 claims.extend(match.group(0) for match in numbers)
-        elif re.search(r'\d', sentence) and not refusal:
+        elif _has_bare_number(sentence) and not refusal and not _is_metadata_sentence(sentence):
             unclear.append(sentence)
     if not says_insufficient:
         return 'failed', '未明确说明资料不足'
@@ -235,8 +255,8 @@ def evaluate_knowledge_base(data_path=None, progress_path=None):
     from ragas.embeddings import LangchainEmbeddingsWrapper
 
     from pathlib import Path
-    data_path = Path(data_path) if data_path else Path(__file__).with_name('enterprise_evaluate_results.json')
-    progress_path = Path(progress_path) if progress_path else data_path.with_name('enterprise_ragas_scores_progress.json')
+    data_path = Path(data_path) if data_path else Path(__file__).with_name('warehouse_raw_results.json')
+    progress_path = Path(progress_path) if progress_path else data_path.with_name('warehouse_ragas_scores_progress.json')
     if data_path.resolve() == progress_path.resolve():
         raise ValueError('评估进度文件不能覆盖原始评估数据。')
     with open(data_path, 'r', encoding='utf-8') as f:
@@ -348,7 +368,7 @@ if __name__ == "__main__":
     from pathlib import Path
 
     parser = argparse.ArgumentParser(description='对采集结果计算 RAGAS 指标，并单独统计资料不足题')
-    parser.add_argument('--data', type=Path, help='采集结果 JSON；默认 enterprise_evaluate_results.json')
+    parser.add_argument('--data', type=Path, help='采集结果 JSON；默认 warehouse_raw_results.json')
     parser.add_argument('--progress', type=Path,
                         help='评分断点文件；重跑一轮时请指定新文件，避免覆盖历史进度')
     args = parser.parse_args()

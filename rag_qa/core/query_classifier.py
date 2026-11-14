@@ -418,7 +418,7 @@ def compare_routing(classifier, data_file=None, threshold=0.8):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='BERT 企业问题分类训练、预测与分流对比')
+    parser = argparse.ArgumentParser(description='仓配 SaaS 问答的 BERT 领域分类训练、预测与分流对比')
     parser.add_argument('--train', action='store_true', help='训练并保存分类模型')
     parser.add_argument('--data', help='训练数据文件（默认 enterprise_scope_v2.jsonl）')
     parser.add_argument('--predict', nargs='*', help='预测指定问题')
@@ -441,11 +441,11 @@ def main():
         print('模型未加载，请先运行 --train 或检查模型路径')
         return
     test_queries = args.predict or [
-        'VPN 是什么？',
-        '我们公司的 VPN 怎么申请？',
-        '云帆科技的餐卡怎么充值？',
+        '什么是 RAG？',
+        '订单一直同步不过来怎么排查？',
+        '抖店电子面单取号失败怎么办？',
         '什么是人工智能？',
-        '报销进度在哪里查询？',
+        '库存对不上应该先看什么？',
     ]
     for query in test_queries:
         result = classifier.predict_with_confidence(query)

@@ -6,6 +6,9 @@ from concurrent.futures import CancelledError
 from rag_qa.core.prompts import RAGPrompts
 from rag_qa.core.query_classifier import QueryClassifier
 from rag_qa.core.strategy_selector import StrategySelector
+from rag_qa.core.triage import (is_clarification_answer, is_clarification_reply,
+                                needs_clarification)
+from rag_qa.core.doc_metadata import parse_version_selection
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 rag_qa_path = os.path.dirname(current_dir)
@@ -30,7 +33,10 @@ _ENTERPRISE_TOPICS = re.compile(
     r'|审批|权限|账号|账户|工牌|门禁|办公设备|办公用品|资产|采购|预算|合同|盖章|用印'
     r'|档案|保密|合规|审计|培训|导师|会议室|工位|班车|食堂|体检|福利|餐卡|餐补|停车'
     r'|工单|客户反馈|售后|退款|协作平台|办公平台|内部系统|业务系统|办公系统|服务台|客服'
-    r'|激活邮件|公司邮箱|企业邮箱|知识库|手册',
+    r'|激活邮件|公司邮箱|企业邮箱|知识库|手册'
+    r'|订单|同步|库存|差异|对不上|超卖|发货|面单|电子面单|取号|运单|物流|快递|仓库|仓配'
+    r'|店铺|授权|接口|错误码|报错|旺店通|聚水潭|万里牛|抖店|拼多多|淘宝|天猫|京东|快手'
+    r'|ERP|WMS|SKU|平台货品|版本',
     re.IGNORECASE,
 )
 # 通用技术词单独出现时按常识回答，只有“怎么开通/怎么连接/找谁”等操作诉求才检索企业资料。
@@ -60,14 +66,14 @@ def _is_follow_up(query):
             or (text.startswith('那') and len(text) <= 12))
 
 
-def _requires_local_evidence(query, source_filter=None):
-    """判断回答是否必须依赖企业资料。
+def _requires_local_evidence(query, source_filter=None, filters=None):
+    """判断回答是否必须依赖知识库资料。
 
-    依次考虑：用户选中的资料分类、明确要求引用、纯概念定义、公司指向、企业业务主题、
-    带操作诉求的通用技术词。纯概念问题（如“VPN 是什么？”）不检索企业资料。
+    依次考虑：用户选中的资料分类/业务筛选、明确要求引用、纯概念定义、公司指向、
+    企业业务主题、带操作诉求的通用技术词。纯概念问题不检索企业资料。
     """
     text = (query or '').strip()
-    if source_filter:
+    if source_filter or any((filters or {}).values()):
         return True
     if not text:
         return False
@@ -111,12 +117,58 @@ def _document_identity(doc):
             meta.get('parent_id'), doc.page_content)
 
 
+def _source_key(doc):
+    """来源去重键：优先 URL，其次文件路径或文档 ID。没有稳定标识时返回 None。"""
+    meta = getattr(doc, 'metadata', None) or {}
+    return meta.get('source_url') or meta.get('file_path') or meta.get('doc_id') or meta.get('document_id')
+
+
+def _dedupe_source_documents(documents):
+    """同一份资料只保留一个引用编号，并把后续块的内容合并进来。
+
+    只按 URL、文件路径或文档 ID 等稳定标识合并；没有稳定标识的资料一律保留，
+    避免把名称相似的不同文档误删。编号在生成回答前就确定，正文 [n] 与来源一一对应。
+    """
+    merged, positions = [], {}
+    for doc in documents:
+        key = _source_key(doc)
+        if not key:
+            merged.append(doc)
+            continue
+        position = positions.get(key)
+        if position is None:
+            positions[key] = len(merged)
+            merged.append(doc)
+        elif doc.page_content and doc.page_content not in merged[position].page_content:
+            merged[position].page_content = f'{merged[position].page_content}\n\n{doc.page_content}'
+    return merged
+
+
 def _document_score(doc):
     """重排分数缺失时按可用处理，避免测试替身或旧数据被误判为无关。"""
     try:
         return float(doc.metadata.get('score', 1.0))
     except (TypeError, ValueError):
         return 1.0
+
+
+def _version_scope_notice(documents, selected):
+    """资料只部分覆盖所选版本时，生成必须写进回答的附加条件提示。"""
+    selected = (selected or '').strip()
+    if not selected:
+        return ''
+    labels = []
+    for doc in documents:
+        if doc.metadata.get('version_match') != 'partial':
+            continue
+        label = (doc.metadata.get('version') or '').strip()
+        if label and label not in labels:
+            labels.append(label)
+    if not labels:
+        return ''
+    return ('版本适用范围提示：所选版本为“%s”，但资料“%s”只覆盖其中一部分。'
+            '回答必须写明该附加条件，不能把所选范围内的所有版本都判定为适用。'
+            % (selected, '”“'.join(labels)))
 
 
 def _filter_citation_markers(chunks, max_index):
@@ -147,16 +199,17 @@ def _filter_citation_markers(chunks, max_index):
             if closing < 0:
                 candidate = rest
                 # 只有空内容或纯数字才可能发展成引用编号，其余按普通文本立即输出。
-                if len(candidate) <= 10 and (not candidate or candidate.isdigit()):
+                if len(candidate) <= 10 and (not candidate or candidate.isdecimal()):
                     pending = text[opening:]
                 else:
                     parts.append(text[opening:])
                 break
             end = opening + 1 + closing + 1
             inner = rest[:closing]
-            if inner.isdigit() and 1 <= int(inner) <= max_index:
-                parts.append(text[opening:end])
-            elif not inner.isdigit():
+            if inner.isdecimal():
+                if len(inner) <= 10 and 1 <= int(inner) <= max_index:
+                    parts.append(text[opening:end])
+            else:
                 # 普通方括号文本，不当作引用，完整保留。
                 parts.append(text[opening:end])
             # 纯数字但越界：丢弃整个 [n]。
@@ -183,7 +236,7 @@ class RAGSystem:
         self.query_classifier = QueryClassifier(classifier_path)
         self.strategy_selector = StrategySelector()
 
-    def _retrieve_with_hyde(self, query, source_filter=None):
+    def _retrieve_with_hyde(self, query, source_filter=None, filters=None):
         """
         函数作用: 针对于抽象/开放性查询, 先生成假设性答案, 再用假设答案检索文档 -> 解决 抽象查询 直接检索关键词 匹配度低 的问题.
         :param query: 用户的原始查询文本(str).
@@ -199,13 +252,14 @@ class RAGSystem:
             return self.vector_store.hybrid_search_with_rerank(
                 hypo_answer,
                 k=conf.RETRIEVAL_K,
-                source_filter=source_filter, rerank_query=query
+                source_filter=source_filter, rerank_query=query, filters=filters
             )
         except Exception as e:
             logger.error(f"HyDE 策略执行失败: {e}")
-            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
+            return self.vector_store.hybrid_search_with_rerank(
+                query, source_filter=source_filter, filters=filters)
 
-    def _retrieve_with_subqueries(self, query, source_filter=None):
+    def _retrieve_with_subqueries(self, query, source_filter=None, filters=None):
         """
         函数作用: 针对于多实体/多方面的复杂查询, 拆分为多个简单子查询, 分别检索后合并去重 -> 解决多维度查询检索不全面的问题.
         :param query: 用户的原始查询文本.
@@ -220,12 +274,13 @@ class RAGSystem:
             logger.debug(f"生成的子查询: {subqueries}")
             if not subqueries:
                 logger.warning("未能生成有效的子查询")
-                return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
+                return self.vector_store.hybrid_search_with_rerank(
+                    query, source_filter=source_filter, filters=filters)
 
             all_docs = []
             for sub_q in subqueries:
                 docs = self.vector_store.hybrid_search_with_rerank(
-                    sub_q, k=conf.RETRIEVAL_K, source_filter=source_filter
+                    sub_q, k=conf.RETRIEVAL_K, source_filter=source_filter, filters=filters
                 )
                 all_docs.extend(docs)
                 logger.debug(f"子查询 '{sub_q}' 检索到 {len(docs)} 个文档")
@@ -236,22 +291,25 @@ class RAGSystem:
 
         except Exception as e:
             logger.error(f"子查询策略执行失败: {e}")
-            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
+            return self.vector_store.hybrid_search_with_rerank(
+                query, source_filter=source_filter, filters=filters)
 
-    def _retrieve_with_backtracking(self, query, source_filter=None):
+    def _retrieve_with_backtracking(self, query, source_filter=None, filters=None):
         logger.debug(f"使用回溯问题策略进行检索 (查询: '{query}')")
         backtrack_prompt_template = RAGPrompts.backtracking_prompt()
         try:
             simplified_query = self.llm(backtrack_prompt_template.format(query=query)).strip()
             logger.debug(f"生成的回溯问题: '{simplified_query}'")
             return self.vector_store.hybrid_search_with_rerank(
-                simplified_query, k=conf.RETRIEVAL_K, source_filter=source_filter, rerank_query=query
+                simplified_query, k=conf.RETRIEVAL_K, source_filter=source_filter,
+                rerank_query=query, filters=filters
             )
         except Exception as e:
             logger.error(f"回溯问题策略执行失败: {e}")
-            return self.vector_store.hybrid_search_with_rerank(query, source_filter=source_filter)
+            return self.vector_store.hybrid_search_with_rerank(
+                query, source_filter=source_filter, filters=filters)
 
-    def retrieve_and_merge(self, query, source_filter=None, strategy=None):
+    def retrieve_and_merge(self, query, source_filter=None, strategy=None, filters=None):
         """先选择策略，再检索原问题；增强策略结果与原问题结果合并重排。"""
         if not strategy:
             classifier = getattr(self, 'query_classifier', None)
@@ -268,14 +326,17 @@ class RAGSystem:
 
         # 不论分类结果或选中策略，都先检索原问题。
         direct_docs = self.vector_store.hybrid_search_with_rerank(
-            query, k=conf.RETRIEVAL_K, source_filter=source_filter)
+            query, k=conf.RETRIEVAL_K, source_filter=source_filter, filters=filters)
 
         if strategy == '回溯问题检索':
-            enhanced_docs = self._retrieve_with_backtracking(query, source_filter=source_filter)
+            enhanced_docs = self._retrieve_with_backtracking(
+                query, source_filter=source_filter, filters=filters)
         elif strategy == '子查询检索':
-            enhanced_docs = self._retrieve_with_subqueries(query, source_filter=source_filter)
+            enhanced_docs = self._retrieve_with_subqueries(
+                query, source_filter=source_filter, filters=filters)
         elif strategy == '假设问题检索':
-            enhanced_docs = self._retrieve_with_hyde(query, source_filter=source_filter)
+            enhanced_docs = self._retrieve_with_hyde(
+                query, source_filter=source_filter, filters=filters)
         else:
             enhanced_docs = []
 
@@ -292,12 +353,18 @@ class RAGSystem:
                     strategy, len(direct_docs), len(enhanced_docs), len(final_docs))
         return final_docs
 
-    def _prepare_answer(self, query, source_filter=None, history=None):
+    def _prepare_answer(self, query, source_filter=None, history=None, filters=None):
         history = [h for h in (history if isinstance(history, list) else [])[-5:] if isinstance(h, dict)
                    and isinstance(h.get('question'), str) and isinstance(h.get('answer'), str)]
+        previous = history[-1] if history else {}
+        previous_answer = (previous.get('answer') or '') if isinstance(previous, dict) else ''
+        previous_sources = previous.get('sources') if isinstance(previous, dict) else None
+        previous_was_clarification = is_clarification_answer(previous_answer)
+        # 只有本轮确实在补上一轮追问的信息时才继承问题；否则新问题不能被旧追问带偏。
+        answering_clarification = previous_was_clarification and is_clarification_reply(query)
         retrieval_query = query
         anchor = ''
-        is_follow_up = _is_follow_up(query)
+        is_follow_up = _is_follow_up(query) or answering_clarification
         # 新的独立问题不携带无关历史；追问仍保留最近对话。
         relevant_history = history if is_follow_up else []
         history_context = "\n".join(f"Q: {h['question']}\nA: {h['answer']}" for h in relevant_history)
@@ -305,17 +372,16 @@ class RAGSystem:
         if history and is_follow_up:
             anchor = next((item['question'] for item in reversed(history)
                            if not _is_follow_up(item['question'])), history[-1]['question'])
+            if answering_clarification:
+                anchor = previous.get('question') or anchor
             if ''.join(query.split()).casefold() in ''.join(anchor.split()).casefold():
                 retrieval_query = anchor
             else:
                 retrieval_query = anchor + "\n后续问题：" + query
-        previous = history[-1] if history else {}
-        previous_answer = (previous.get('answer') or '') if isinstance(previous, dict) else ''
-        previous_sources = previous.get('sources') if isinstance(previous, dict) else None
-        # 连续追问时，上一轮已经检索到来源或明确提示资料不足，本轮继续按企业问题处理。
-        inherits_local = bool(previous_sources) or any(
+        # 连续追问时，上一轮已经检索到来源、刚做过追问或明确提示资料不足，本轮继续按企业问题处理。
+        inherits_local = bool(previous_sources) or answering_clarification or any(
             marker in previous_answer for marker in ('没有找到足够相关的资料', '资料不足'))
-        needs_local = (bool(source_filter) or _requires_local_evidence(query, source_filter)
+        needs_local = (bool(source_filter) or _requires_local_evidence(query, source_filter, filters)
                        or (bool(is_follow_up) and inherits_local)
                        or _follow_up_requires_local_evidence(query, anchor))
         rule_needs_local = needs_local
@@ -345,6 +411,12 @@ class RAGSystem:
         logger.info('问题判断 | 追问：%s | 规则需要本地资料：%s | 最终需要本地资料：%s',
                     '是' if is_follow_up else '否', '是' if rule_needs_local else '否',
                     '是' if needs_local else '否')
+        if needs_local:
+            clarification = needs_clarification(retrieval_query, filters)
+            if clarification:
+                logger.info('信息不足，先追问 | 领域：%s | 缺少：%s',
+                            clarification['domain'], '、'.join(clarification['missing']))
+                return None, [], clarification['question']
         if not needs_local:
             # 普通知识问题不检索企业资料，避免无关文档被当作用户问题的依据。
             prompt = self.rag_prompt.format(
@@ -353,7 +425,8 @@ class RAGSystem:
                 history=history_context, question=query)
             return prompt, [], None
         try:
-            documents = self.retrieve_and_merge(retrieval_query, source_filter=source_filter)
+            documents = self.retrieve_and_merge(retrieval_query, source_filter=source_filter,
+                                                filters=filters)
         except Exception as exc:
             logger.exception('知识检索失败')
             raise RetrievalError('知识库检索暂时失败，请确认向量库服务正常后重试。') from exc
@@ -364,40 +437,64 @@ class RAGSystem:
             if not documents:
                 logger.info('检索到的资料相关度低于阈值 %.2f，按资料不足处理', conf.MIN_ANSWER_SCORE)
         if not documents:
-            return None, [], ('当前知识库没有找到足够相关的资料，无法依据已导入的文件确认这一点。'
-                              '我不会猜测内部人员、审批规则或联系方式。'
-                              '请补充对应资料，或切换到包含该资料的分类后重试。')
+            filter_text = '、'.join(f'{label}：{value}' for label, value in
+                                    (('产品', (filters or {}).get('product')),
+                                     ('平台', (filters or {}).get('platform')),
+                                     ('版本', (filters or {}).get('version'))) if value)
+            reason = (f'在“{filter_text}”的筛选条件下，' if filter_text else '')
+            return None, [], (f'资料不足：{reason}没有找到能覆盖该问题的公开文档。'
+                              '还缺少具体报错原文或错误码，或对应产品版本的接口/帮助文档；'
+                              '请补充后再试，我不会根据常识猜测排查步骤。')
+        # 同一份资料可能被多个子查询或父子块重复召回，按稳定标识合并后再编号，
+        # 避免界面上同一份资料出现多次，同时保证正文 [n] 与来源编号一一对应。
+        documents = _dedupe_source_documents(documents)
+        version_filter = (filters or {}).get('version')
+        version_notice = _version_scope_notice(documents, version_filter)
+        if version_notice:
+            # 全部资料都只覆盖所选范围的一部分时，无法判断用户的具体版本是否适用，
+            # 先追问完整版本号，避免把“部分重叠”当成“全部适用”。
+            if all(doc.metadata.get('version_match') == 'partial' for doc in documents) \
+                    and parse_version_selection(version_filter)['kind'] in ('at_least', 'at_most'):
+                return None, [], (
+                    f'资料只覆盖“{version_filter}”的一部分，无法确认你的具体客户端版本是否适用。'
+                    '请补充完整版本号（例如 V2.4.4.6）？')
         selected, snippets, remaining = [], [], conf.MAX_CONTEXT_CHARS
         for doc in documents:
             if remaining <= 0: break
             meta = doc.metadata
-            title = meta.get('filename') or os.path.basename(meta.get('file_path') or '') or meta.get('source',
-                                                                                                      '知识库')
+            title = meta.get('doc_title') or meta.get('filename') or os.path.basename(
+                meta.get('file_path') or '') or meta.get('source', '知识库')
             location = f"第 {meta['page']} 页" if meta.get('page') else f"第 {meta['slide']} 张幻灯片" if meta.get(
                 'slide') else ''
+            facts = '；'.join(f'{label}：{meta[key]}' for label, key in
+                              (('章节', 'section'), ('产品', 'product'), ('平台', 'platform'),
+                               ('版本', 'version')) if meta.get(key))
+            source_url = f"\n原文链接：{meta['source_url']}" if meta.get('source_url') else ''
             snippet = doc.page_content[:remaining]
-            snippets.append(f"[{len(selected) + 1}] {title} {location}\n{snippet}")
+            header = f"[{len(selected) + 1}] {title} {location}"
+            if facts:
+                header += f"\n{facts}"
+            snippets.append(f"{header}\n{snippet}{source_url}")
             selected.append(doc)
             remaining -= len(snippet)
         context_text = "\n\n".join(snippets)
         if selected:
-            context_text = (f"可用引用编号：1 到 {len(selected)}；回答中不得使用该范围以外的编号。\n\n"
-                            + context_text)
+            context_text = (f"可用引用编号：1 到 {len(selected)}；回答中不得使用该范围以外的编号。"
+                            + (f"\n{version_notice}" if version_notice else "")
+                            + "\n\n" + context_text)
         prompt = self.rag_prompt.format(context=context_text, history=history_context,
                                         question=query)
         return prompt, selected, None
 
     def generate_answer_stream(self, query, source_filter=None, history=None, on_context=None,
-                               cancel_event=None):
+                               cancel_event=None, filters=None):
         if cancel_event and cancel_event.is_set(): raise CancelledError('生成已取消')
-        prompt, documents, direct = self._prepare_answer(query, source_filter, history)
+        prompt, documents, direct = self._prepare_answer(query, source_filter, history, filters)
         if cancel_event and cancel_event.is_set(): raise CancelledError('生成已取消')
         if on_context: on_context(documents)
         if direct:
             yield direct
             return
-        if not documents:
-            yield '以下回答未引用知识库资料，仅供参考：\n\n'
         if self.stream_llm:
             if cancel_event is None:
                 chunks = self.stream_llm(prompt)
@@ -405,7 +502,22 @@ class RAGSystem:
                 chunks = self.stream_llm(prompt, cancel_event=cancel_event)
         else:
             chunks = (self.llm(prompt),)
-        yield from _filter_citation_markers(chunks, len(documents))
+        has_text = False
+        try:
+            for text in _filter_citation_markers(chunks, len(documents)):
+                if not has_text:
+                    if not text.strip():
+                        continue
+                    has_text = True
+                yield text
+        finally:
+            close = getattr(chunks, 'close', None)
+            if close:
+                close()
+        if not has_text:
+            raise RuntimeError('模型未返回有效回答，请重试')
+        if not documents:
+            yield '\n\n本回答未引用知识库资料，仅供参考。'
 
-    def generate_answer(self, query, source_filter=None, history=None):
-        return ''.join(self.generate_answer_stream(query, source_filter, history))
+    def generate_answer(self, query, source_filter=None, history=None, filters=None):
+        return ''.join(self.generate_answer_stream(query, source_filter, history, filters=filters))

@@ -30,10 +30,10 @@ from rag_qa.core.rag_pipeline import RetrievalError
 ROOT = Path(__file__).resolve().parent
 LOCAL_HOSTS = {'127.0.0.1', '::1', 'localhost'}
 GREETINGS = [
-    (r'(你好|您好|hi|hello)[!！。,.，？?\s]*', '你好！我是企业知识库助手。你可以直接提问，也可以先导入企业资料。'),
+    (r'(你好|您好|hi|hello)[!！。,.，？?\s]*', '你好！我是仓配 SaaS 实施与售后知识库助手。你可以按产品、平台和版本筛选后提问。'),
     (r'(你是谁|您是谁|你叫什么|你的名字|who are you)[!！。,.，？?\s]*',
-     '我是企业知识库助手，可以结合导入的制度、产品手册和业务资料回答问题。'),
-    (r'(在吗|在不在|有人吗)[!！。,.，？?\s]*', '我在，请告诉我你想了解什么。'),
+     '我是仓配 SaaS 实施与售后知识库助手，可以结合公开帮助文档、API 文档和版本说明回答问题。'),
+    (r'(在吗|在不在|有人吗)[!！。,.，？?\s]*', '我在，请告诉我你想了解哪个产品、平台和版本下的问题。'),
 ]
 
 
@@ -46,6 +46,9 @@ def check_greeting(query):
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=6000)
     source_filter: Optional[str] = Field(default=None, max_length=50)
+    product: Optional[str] = Field(default=None, max_length=80)
+    platform: Optional[str] = Field(default=None, max_length=80)
+    version: Optional[str] = Field(default=None, max_length=160)
     session_id: Optional[uuid.UUID] = None
 
     @field_validator('query')
@@ -109,7 +112,7 @@ def create_app(qa_factory=None, importer_factory=None):
             if qa is not None and hasattr(qa, 'close'):
                 await run_in_threadpool(qa.close)
 
-    app = FastAPI(title='企业知识库智能问答系统', lifespan=lifespan)
+    app = FastAPI(title='仓配 SaaS 实施与售后知识问答系统', lifespan=lifespan)
 
     def allowed(connection):
         if access_token:
@@ -162,6 +165,12 @@ def create_app(qa_factory=None, importer_factory=None):
 
     def validate_subject(qa, source):
         if source and source not in qa.config.VALID_SOURCES: raise HTTPException(422, '请选择有效的资料分类')
+
+    def validate_filters(qa, product, platform, version):
+        try:
+            return qa._build_filters(product, platform, version)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
 
     @app.get('/')
     async def index():
@@ -218,6 +227,15 @@ def create_app(qa_factory=None, importer_factory=None):
     async def sources():
         return {'sources': service().config.VALID_SOURCES}
 
+    @app.get('/api/filters')
+    async def filters():
+        config = service().config
+        labels = getattr(config, 'SOURCE_LABELS', {})
+        return {'products': getattr(config, 'FILTER_PRODUCTS', []),
+                'platforms': getattr(config, 'FILTER_PLATFORMS', []),
+                'versions': getattr(config, 'FILTER_VERSIONS', []),
+                'sources': [{'key': key, 'label': labels.get(key, key)} for key in config.VALID_SOURCES]}
+
     @app.get('/api/documents')
     async def documents(source: Optional[str] = None):
         validate_subject(service(), source)
@@ -237,8 +255,16 @@ def create_app(qa_factory=None, importer_factory=None):
             raise HTTPException(500, '资料删除失败，请检查向量库服务后重试')
 
     @app.post('/api/documents')
-    async def import_document(request: Request, source: str, filename: str):
+    async def import_document(request: Request, source: str, filename: str,
+                              doc_title: Optional[str] = None, section: Optional[str] = None,
+                              product: Optional[str] = None, platform: Optional[str] = None,
+                              version: Optional[str] = None, source_url: Optional[str] = None,
+                              doc_type: Optional[str] = None):
         target = importer()
+        metadata = {key: value for key, value in (
+            ('doc_title', doc_title), ('section', section), ('product', product),
+            ('platform', platform), ('version', version), ('source_url', source_url),
+            ('doc_type', doc_type)) if value}
         try:
             extension = target.validate(source, filename)
         except ImportValidationError as exc:
@@ -253,7 +279,7 @@ def create_app(qa_factory=None, importer_factory=None):
                     await run_in_threadpool(stream.write, chunk)
             if not size: raise HTTPException(400, '不能上传空文件')
             try:
-                return await run_in_threadpool(target.import_file, path, source, filename)
+                return await run_in_threadpool(target.import_file, path, source, filename, metadata)
             except ImportValidationError as exc:
                 raise HTTPException(422, str(exc))
             except Exception:
@@ -269,6 +295,7 @@ def create_app(qa_factory=None, importer_factory=None):
     async def query(request: QueryRequest):
         qa = service();
         validate_subject(qa, request.source_filter)
+        validate_filters(qa, request.product, request.platform, request.version)
         sid = str(request.session_id or uuid.uuid4());
         start = time.monotonic();
         source_items = []
@@ -276,10 +303,10 @@ def create_app(qa_factory=None, importer_factory=None):
         def execute():
             answer = fixed_answer(qa, request.query, sid, request.source_filter)
             if answer: return answer
-            return ''.join(token for token, complete in qa.query(request.query, source_filter=request.source_filter,
-                                                                 session_id=sid,
-                                                                 source_callback=lambda values: source_items.extend(
-                                                                     values)))
+            return ''.join(token for token, complete in qa.query(
+                request.query, source_filter=request.source_filter, session_id=sid,
+                source_callback=lambda values: source_items.extend(values),
+                product=request.product, platform=request.platform, version=request.version))
 
         try:
             answer = await run_in_threadpool(execute)
@@ -301,6 +328,7 @@ def create_app(qa_factory=None, importer_factory=None):
         generator = None
         cancel_event = threading.Event()
         disconnect_task = None
+        next_task = None
         try:
             # 仅把解析与校验阶段的 ValueError 归类为请求错误，运行期错误单独上报。
             try:
@@ -313,6 +341,7 @@ def create_app(qa_factory=None, importer_factory=None):
             try:
                 qa = service()
                 validate_subject(qa, request.source_filter)
+                validate_filters(qa, request.product, request.platform, request.version)
             except HTTPException as exc:
                 await websocket.send_json({'type': 'error', 'error': str(exc.detail)})
                 return
@@ -326,7 +355,8 @@ def create_app(qa_factory=None, importer_factory=None):
             else:
                 generator = qa.query(request.query, source_filter=request.source_filter, session_id=sid,
                                      source_callback=lambda values: source_items.extend(values),
-                                     cancel_event=cancel_event)
+                                     cancel_event=cancel_event, product=request.product,
+                                     platform=request.platform, version=request.version)
                 iterator = iter(generator)
                 def next_item():
                     try: return next(iterator)
@@ -344,14 +374,9 @@ def create_app(qa_factory=None, importer_factory=None):
                     done, _ = await asyncio.wait({next_task, disconnect_task},
                                                  return_when=asyncio.FIRST_COMPLETED)
                     if disconnect_task in done:
-                        cancel_event.set()
-                        next_task.cancel()
-                        try:
-                            await asyncio.wait_for(asyncio.gather(next_task, return_exceptions=True), timeout=2)
-                        except asyncio.TimeoutError:
-                            logger.warning('取消后的工作线程未及时退出，已继续清理')
                         raise CancelledError('生成已取消')
                     item = await next_task
+                    next_task = None
                     if item is None: break
                     token, complete = item
                     if token: await websocket.send_json({'type': 'token', 'token': token})
@@ -378,6 +403,7 @@ def create_app(qa_factory=None, importer_factory=None):
                 except (RuntimeError, WebSocketDisconnect):
                     pass
         finally:
+            cancel_event.set()
             if disconnect_task is not None and not disconnect_task.done():
                 disconnect_task.cancel()
                 try:
@@ -385,6 +411,10 @@ def create_app(qa_factory=None, importer_factory=None):
                 except (asyncio.CancelledError, WebSocketDisconnect, RuntimeError):
                     pass
             if generator is not None:
+                # 取消 asyncio 任务不会停止已启动的工作线程。先等 next() 退出，
+                # 再关闭生成器，避免并发调用 close() 导致会话锁无法及时释放。
+                if next_task is not None:
+                    await asyncio.gather(next_task, return_exceptions=True)
                 try:
                     await run_in_threadpool(generator.close)
                 except Exception:

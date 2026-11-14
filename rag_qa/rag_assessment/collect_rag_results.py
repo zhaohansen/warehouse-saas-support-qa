@@ -10,8 +10,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-DEFAULT_INPUT = Path(__file__).with_name('enterprise_evaluate_data.json')
-DEFAULT_OUTPUT = Path(__file__).with_name('enterprise_evaluate_results.json')
+DEFAULT_INPUT = Path(__file__).with_name('warehouse_evaluate_data.json')
+DEFAULT_OUTPUT = Path(__file__).with_name('warehouse_raw_results.json')
 
 
 def _save_json(path, data):
@@ -24,7 +24,10 @@ def _save_json(path, data):
             f.write('\n')
         os.replace(temp_path, path)
     finally:
-        temp_path.unlink(missing_ok=True)
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _actual_context(documents, max_chars):
@@ -67,7 +70,7 @@ def collect_rag_results(input_path, output_path, rag_system, max_context_chars, 
         """从题库重建记录，避免源文件里遗留的状态影响新一轮采集。"""
         items = []
         for item in source:
-            record = dict(item, answer='', context=[])
+            record = dict(item, answer='', context=[], sources=[])
             record.pop('_capture_status', None)
             record.pop('_capture_error', None)
             items.append(record)
@@ -103,17 +106,25 @@ def collect_rag_results(input_path, output_path, rag_system, max_context_chars, 
         print(f'[{index + 1}/{len(data)}] 正在处理：{item["question"]}', flush=True)
         try:
             answer = ''.join(rag_system.generate_answer_stream(
-                item['question'], history=[], on_context=documents.extend))
+                item['question'], history=[], on_context=documents.extend,
+                filters=item.get('filters') or {}))
             if not answer.strip():
                 raise RuntimeError('系统未生成有效回答')
             item['answer'] = answer
             item['context'] = _actual_context(documents, max_context_chars)
+            item['sources'] = [{
+                key: doc.metadata.get(key)
+                for key in ('doc_title', 'section', 'product', 'platform', 'version',
+                            'source_url', 'source')
+                if doc.metadata.get(key)
+            } for doc in documents]
             item['_capture_status'] = 'completed'
             item.pop('_capture_error', None)
             print(f'  完成：检索到 {len(item["context"])} 段资料', flush=True)
         except Exception as exc:
             item['answer'] = ''
             item['context'] = []
+            item['sources'] = []
             item['_capture_status'] = 'failed'
             item['_capture_error'] = str(exc)
             print(f'  失败：{exc}', file=sys.stderr, flush=True)

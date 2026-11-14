@@ -13,6 +13,20 @@ if not parser.read(config_file, encoding="utf-8"):
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+def _split_csv(raw):
+    return [item.strip() for item in (raw or '').split(',') if item.strip()]
+
+
+def _parse_pairs(raw):
+    pairs = {}
+    for item in _split_csv(raw):
+        if ':' in item:
+            key, value = item.split(':', 1)
+            if key.strip() and value.strip():
+                pairs[key.strip()] = value.strip()
+    return pairs
+
+
 class Config:
     mysql_host = parser.get("mysql", "host")
     mysql_user = parser.get("mysql", "user")
@@ -62,11 +76,13 @@ class Config:
     else:
         LLM_API_KEY = os.getenv("DASHSCOPE_API_KEY", "").strip() or parser.get("llm", "api_key", fallback="").strip()
     LLM_MODEL = parser.get("llm", "model", fallback="qwen-plus")
-    VALID_SOURCES = [
-        item.strip()
-        for item in parser.get("app", "valid_sources", fallback="ai").split(",")
-        if item.strip()
-    ]
+    VALID_SOURCES = _split_csv(parser.get("app", "valid_sources", fallback="ai"))
+    SOURCE_LABELS = _parse_pairs(parser.get("app", "source_labels", fallback=""))
+    for _source in VALID_SOURCES:
+        SOURCE_LABELS.setdefault(_source, _source)
+    FILTER_PRODUCTS = _split_csv(parser.get("app", "filter_products", fallback=""))
+    FILTER_PLATFORMS = _split_csv(parser.get("app", "filter_platforms", fallback=""))
+    FILTER_VERSIONS = _split_csv(parser.get("app", "filter_versions", fallback=""))
     FAQ_THRESHOLD = parser.getfloat("app", "faq_threshold", fallback=0.85)
     if not 0 <= FAQ_THRESHOLD <= 1:
         raise ValueError("faq_threshold 必须在 0 到 1 之间")
@@ -74,7 +90,7 @@ class Config:
     MODELS_DIR = str((PROJECT_ROOT / "rag_qa" / "models").resolve())
     # 可用 QA_HISTORY_PATH 指向独立会话库，便于隔离验证，避免读写正式历史记录。
     HISTORY_PATH = os.getenv("QA_HISTORY_PATH", "").strip() or str(
-        PROJECT_ROOT / "storage" / "enterprise_history.sqlite3")
+        PROJECT_ROOT / "storage" / "warehouse_history.sqlite3")
     MAX_OUTPUT_TOKENS = parser.getint("llm", "max_output_tokens", fallback=4096)
     MAX_CONTEXT_CHARS = parser.getint("retrieval", "max_context_chars", fallback=12000)
     MAX_HISTORY_CHARS = parser.getint("app", "max_history_chars", fallback=12000)

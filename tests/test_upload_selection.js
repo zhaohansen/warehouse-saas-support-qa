@@ -23,4 +23,7 @@ assert.equal(elements['btn-upload'].disabled, true);
 assert.equal(elements['import-status'].hidden, false);
 select({name:'ok.pdf', size: 20});
 assert.equal(elements['btn-upload'].disabled, false);
+select({name:'手册.DOCX', size: 20});
+assert.equal(state.file.name, '手册.DOCX');
+assert.equal(elements['btn-upload'].disabled, false);
 console.log('文件选择、取消、无效文件及重新选择测试通过。');

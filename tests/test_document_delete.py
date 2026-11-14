@@ -19,8 +19,8 @@ class DeleteTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.directory = self.root / 'python_data' / 'uploads'
+        self.root = Path(self.temp.name).resolve()
+        self.directory = self.root / 'python' / 'uploads'
         self.directory.mkdir(parents=True)
         self.identifier = 'a' * 64 + '.txt'
         self.path = self.directory / self.identifier

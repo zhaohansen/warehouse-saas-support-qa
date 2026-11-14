@@ -1,164 +1,185 @@
-# 企业知识库智能问答系统
+# 仓配 SaaS 实施与售后知识问答系统
 
-面向企业知识查询场景的 RAG 演示项目。用户可以导入企业制度、产品手册、业务流程和入职资料，通过自然语言查找资料并获取带来源的回答。项目目前是共享空间，没有多用户账号、角色权限或多租户隔离，也未声称已经在真实企业部署。
+面向国内仓配 SaaS 软件企业实施与售后场景的 RAG 问答项目。目标用户是负责客户上线、工单初判和故障排查的实施顾问与售后工程师。
 
-## 功能
+**这是个人项目，不是企业生产系统。** 当前资料来自旺店通、抖店、拼多多的公开帮助文档、API 文档和版本说明，以及本人整理的版本对照笔记；没有使用真实客户数据，也没有在企业环境部署。项目中的“实施顾问”“售后工程师”是目标用户设定，不代表已有真实用户或线上流量。
 
-- 支持 PDF、PPTX、DOCX 和 UTF-8 TXT 文件导入、资料分类、查看与删除。
-- 使用 BGE-M3 生成稠密和稀疏向量，借助 Milvus 混合检索、重排和大模型生成回答，并展示检索来源。
-- 支持流式输出、停止生成、对话历史和网页访问口令；检索失败时单独提示。
-- 企业问题会先检索知识库：检索不到或相关度不足时明确说明缺少依据；通用概念问题走常识回答并标注未引用知识库。
-- 附带四类共 16 份虚构企业资料与 18 条配套评估问题，全部仅供演示，不能当作真实企业制度。
+第一版只处理三类业务问题：
 
-## 最短演示路径（Windows）
+- 订单同步失败
+- 库存差异
+- 发货或面单异常
 
-1. 复制 `base/config.example.ini` 为 `base/config.ini`，确认模型路径、大模型服务和 Milvus 配置。没有 Milvus 服务端时，在 `[milvus]` 填写 `uri = ./storage/milvus_lite.db`，或设置环境变量 `QA_MILVUS_URI`（不要用 `MILVUS_URI` 指向本地文件，pymilvus 会把它当成服务地址），使用 Milvus Lite。
-2. 安装依赖并在项目根目录启动：`python app.py`。默认地址 http://127.0.0.1:8081，访问 `/health` 确认 `ready` 和 `retrieval_ready` 都为 `true`。
-3. 打开网页，在「导入资料」中按分类导入以下 **4 份** 文件即可完成最短演示（服务不会自动导入）：
+项目保留父子分块、Milvus 混合检索、重排和流式回答，并增加按产品、平台、版本筛选。回答按“适用条件 → 排查顺序 → 来源”组织；缺少能区分情况的关键信息时先追问一个具体问题；资料不足时说明还缺哪个信息或哪份文档。
 
-| 分类 | 文件 |
-| --- | --- |
-| 制度规范 `policies` | `rag_qa/data/policies_data/虚构演示-请假与报销规范.txt` |
-| 产品手册 `products` | `rag_qa/data/products_data/虚构演示-协作平台登录故障与账号恢复.txt` |
-| 业务流程 `operations` | `rag_qa/data/operations_data/虚构演示-客户反馈处理流程.txt` |
-| 员工入职 `onboarding` | `rag_qa/data/onboarding_data/虚构演示-新员工入职指南.txt` |
+## 资料范围与授权边界
 
-4. 依次提问：
-   - 「无法登录协作平台应该联系谁？」应回答 IT 服务台并提供来源；
-   - 「新员工领取办公设备的流程顺序是什么？」应给出申请、核对、配置登记、当面确认四步并引用入职指南；
-   - 「节日福利金额是多少？」应明确说明资料不足，不猜测金额。
-5. 在同一会话追问「那应该找谁？」，或在分类筛选中只选「产品手册」后再问报销问题，观察追问上下文与分类过滤效果。
+公开资料统一带 `【文档元数据】` 头，记录标题、章节、产品、平台、适用版本、文档类型、原文链接、更新时间和授权状态。
 
-修改代码或配置后需重启服务。首次安装依赖及模型：按硬件安装兼容的 PyTorch 后安装 `requirements.txt`；模型权重放在 `rag_qa/models/`，密钥使用环境变量（`DASHSCOPE_API_KEY` 或 `DEEPSEEK_API_KEY`），不要写入配置文件。
+| 目录 | 数量 | 内容 |
+| --- | --- | --- |
+| `rag_qa/data/product_docs/` | 6 | 旺店通创建原始订单、销售出库单查询、库存同步查询、库存同步回写、错误码、电子面单号查询 |
+| `rag_qa/data/platform_docs/` | 4 | 抖店订单列表、抖店电子面单、拼多多订单同步、拼多多电子面单 |
+| `rag_qa/data/release_notes/` | 3 | 旺店通接口适用版本对照、低版本接口限制、网页版库存查询 |
+| `rag_qa/data/internal_docs/` | 0 | 企业私有故障复盘、升级规则、客户资料；未获授权，不导入 |
 
-## 完整评估资料与批量建库
+当前建库后为 52 个父/子块，集合名 `warehouse_saas_kb_qa`。
 
-企业评估题依赖 `rag_qa/data` 下 **全部 16 份** 文件（四个分类各 4 份），导入不全会导致跨文档题和部分事实题召回不到依据：
+资料使用边界：
 
-| 分类目录 | 文件 |
-| --- | --- |
-| `policies_data` | 虚构演示-请假与报销规范.txt；虚构演示-请假申请与销假流程.txt；虚构演示-费用报销办理指引.txt；虚构演示-差旅申请与行程变更指引.txt |
-| `products_data` | 虚构演示-协作平台产品手册.txt；虚构演示-协作平台使用指南.txt；虚构演示-协作平台角色与权限说明.txt；虚构演示-协作平台登录故障与账号恢复.txt |
-| `operations_data` | 虚构演示-客户反馈处理流程.txt；虚构演示-客户反馈登记规范.txt；虚构演示-工单分级与超时升级规则.txt；虚构演示-工单交接与关闭规范.txt |
-| `onboarding_data` | 虚构演示-新员工入职指南.txt；虚构演示-新员工入职第一天安排.txt；虚构演示-办公设备申领与异常处理.txt；虚构演示-系统账号与权限开通指引.txt |
+- 公开资料在回答中必须标注适用平台、产品和原文链接，不能把抖店的字段、接口或错误码套到拼多多或旺店通上。
+- 正文内容分三类：官方原文摘录；`release_notes/` 中 2 份标题带“（整理）”的版本对照/限制说明（本人整理，非官方原文）；以及“排查顺序建议”“使用建议”等基于官方资料提出的实践建议。后两类不是厂商原文，演示和面试中会明确说明。
+- `internal_docs/` 为空。企业私有资料只有在获得明确授权后才应导入；本项目没有导入任何未授权内部资料。
+- 演示和评估只验证“能否找到并引用公开资料”，不代表对真实客户故障作出了正确诊断。
+- 本次只对 `trade_push.php` 和开放平台公共错误码页做了在线原文核对；其余原文链接沿用了资料整理时的记录，没有逐条重新抓取，链接失效或平台改版时需重新核对。
 
-在项目根目录执行批量建库（使用 `base/config.ini` 中的同一数据库 `enterprise_knowledge`、集合 `enterprise_knowledge_qa` 和同一套分块参数）：
+## 一次问答的完整流程
+
+1. **领域初判**：先判断问题属于订单、库存还是面单，并检查是否缺少平台、错误码、完整版本号、异常阶段等关键信息。缺信息时直接追问，不进入 FAQ。
+2. **FAQ 分流**：常见、表述稳定的问题走 FAQ BM25；含错误码、版本、多个业务对象或需要现场判断的问题跳过 FAQ，走检索。
+3. **问题改写**：跟进问题结合上一轮问题扩展检索词；不做多轮无关问题的历史拼接。
+4. **混合召回**：BGE-M3 生成稠密向量和稀疏向量，从 Milvus 召回子块。
+5. **父块回溯**：命中子块后取回父块，按父块去重，保留上下文。
+6. **元数据筛选**：产品、平台在召回阶段下推为 Milvus 表达式；版本在父块去重后、重排前做后置过滤。
+7. **重排与阈值**：BGE-Reranker 对候选父块重排，低于阈值的结果被丢弃；全部低于阈值时不强行生成。
+8. **生成与引用**：大模型输出适用条件、排查顺序和来源；引用编号对应父块元数据，超出范围的编号会被清理。
+
+## 检索、筛选与引用的实际实现
+
+### 稠密、稀疏与融合
+
+- 稠密和稀疏向量都由 BGE-M3 生成。稠密向量用于语义召回，稀疏向量用于关键词召回。
+- **Milvus 服务端路径**：使用 `hybrid_search` + `WeightedRanker` 做加权融合，权重来自 `base/config.ini` 的 `dense_weight = 0.7`、`sparse_weight = 1.0`。这是本次演示和评估实际运行的路径。
+- **Milvus Lite / 不支持原生混合检索时的回退路径**：分别做稠密召回和稀疏召回，再用客户端 RRF（`k = 60`）融合。两条路径的融合方式不同，不能都写成 RRF。
+- 评估结果 JSON 中的 `backend` 字段记录本次运行的后端和 `hybrid_mode`；本次为 `milvus` + `native`。
+
+### 版本筛选的位置与漏召回风险
+
+- 产品、平台通过 `build_filter_expression` 下推为 Milvus `in` / `==` 表达式。
+- 版本不是 Milvus 精确匹配，而是在召回、父块去重之后按 `version_matches` 做语义判断，支持“V2.4.5.0 及以上”“V2.4.4 及以下”“全版本”“多版本对照”“网页版”“平台最新”。
+- 版本比较统一补零到 4 段，`V2.4.5` 与 `V2.4.5.0` 视为同一版本；用户选具体版本时判断它是否落在资料区间内，选范围时区分“完全覆盖 / 部分重叠 / 不适用 / 仅供比较”。
+- 只部分覆盖的资料会保留，但在回答上下文中加入“版本适用范围提示”，要求回答写明附加条件；如果所有来源都只部分覆盖，先追问完整版本号。“多版本对照”资料只用于比较，不进入逐条适用的上下文。
+- 设置版本筛选时，召回数量扩大到原来的 3 倍（上限 200），以降低“版本相关文档没进候选集”的风险。
+- 风险仍然存在：如果候选集中大部分是不满足版本的文档，后置过滤后可能只剩很少甚至 0 条结果。这类失败属于**召回/筛选**问题，不是答案生成问题。当前没有做“按版本预过滤后再召回”的两阶段检索。
+
+### 重排阈值
+
+- `retrieval.min_score = 0.2`：重排后低于该分数的候选被丢弃。
+- `MIN_ANSWER_SCORE = 0.35`：最终用于回答的最高分低于该值时，走“资料不足”分支。
+- 阈值是经验值，不是校准过的概率。调高会减少无关引用，但可能把“表述不同但正确”的资料挡掉；调低会增加召回，也会增加答非所问和编造风险。本项目没有做阈值敏感性实验。
+
+### 引用编号校验能保证什么
+
+- 保证回答中出现的 `[n]` 落在本次提供的资料编号范围内，超出范围的编号会被移除；同时能在来源列表中展示文档标题、章节、产品、平台、版本和原文链接。
+- **不能保证**引用内容真的支持该句结论，也不能保证每份资料都被引用、每个结论都有引用。当前没有做 claim-level 的引用一致性校验。
+
+## 环境准备
+
+### 必需组件
+
+- Python 3.10+（本次验证环境为 3.12.16）
+- `pip install -r requirements.txt`
+- 本地模型：
+  - BGE-M3：放到 `rag_qa/models/bge-m3`
+  - BGE-Reranker：放到 `rag_qa/models/bge-reranker-large`
+- Milvus 2.4+ 服务端（支持 `hybrid_search`；本次验证为 v2.4.4），默认 `localhost:19530`，数据库 `enterprise_knowledge`
+- 大模型 OpenAI 兼容接口：当前配置为 DeepSeek，密钥通过环境变量 `DEEPSEEK_API_KEY` 提供
+
+模型可从 Hugging Face 或 ModelScope 获取（`BAAI/bge-m3`、`BAAI/bge-reranker-large`），下载后保持目录结构不变，并同步修改 `base/config.ini` 的 `model_path`。示例：
 
 ```powershell
-python -m rag_qa.main --data-processing
+huggingface-cli download BAAI/bge-m3 --local-dir rag_qa/models/bge-m3
+huggingface-cli download BAAI/bge-reranker-large --local-dir rag_qa/models/bge-reranker-large
 ```
 
-使用 Milvus Lite 时，建库与启动网页必须指向同一个本地库文件：
+### 可选组件
+
+- **Milvus Lite**：没有服务端时，可在 `[milvus]` 填 `uri = ./storage/milvus_lite.db`，或设置 `QA_MILVUS_URI`。此路径不支持原生混合检索，会走客户端 RRF；性能和召回行为与服务端不同。
+- **MySQL / Redis**：用于 FAQ 入库。MySQL 使用库 `warehouse_faq`、表 `faq`；不可用时 BM25Search 回退读取 `mysql_qa/db/faq_knowledge_base.csv`，不影响主问答链路。
+- **GPU**：有 CUDA 时按配置使用 `cuda`；无 GPU 时把 `device` 改为 `cpu`，速度会明显下降。
+
+不要把本地 Milvus Lite 文件路径写到 `MILVUS_URI`，pymilvus 会把它当服务地址；本项目使用 `QA_MILVUS_URI` 避免冲突。
+
+## 建库、启动与验证
 
 ```powershell
-$env:QA_MILVUS_URI = "./storage/milvus_lite.db"
+# 1. 配置
+copy base/config.example.ini base/config.ini
+# 修改模型路径、Milvus、LLM 配置；DEEPSEEK_API_KEY 建议用环境变量
+
+# 2. 建库
 python -m rag_qa.main --data-processing
+
+# 3. 启动网页
 python app.py
 ```
 
-批量建库只扫描四个 `*_data` 目录中的正式资料，会跳过网页导入产生的 `uploads/` 哈希副本，避免同一文件重复入库。`rag_qa/data` 之外的验收题文件 `rag_qa/demo_acceptance_questions.md` 不会被建库命令读取，也不应上传到知识库。
+默认地址 http://127.0.0.1:8081。
 
-建库前可核对当前实际使用的数据库、集合和 Milvus 地址（不会输出任何密钥）：
-
-```powershell
-python -c "from base.config import config; print('collection=', config.MILVUS_COLLECTION_NAME); print('database=', config.MILVUS_DATABASE_NAME); print('uri=', config.MILVUS_URI or f'{config.MILVUS_HOST}:{config.MILVUS_PORT}')"
-```
-
-建库和启动网页必须使用同一个 `uri`、数据库和集合：如果建库时设置了 `QA_MILVUS_URI`，启动 `app.py` 的同一个终端也要保留该环境变量。
-
-## 企业评估
-
-`rag_qa/rag_assessment/enterprise_evaluate_data.json` 包含 18 条根据虚构演示资料编写的问题，覆盖直接事实、流程顺序、跨文档、换一种问法和资料不足五类。先导入全部 16 份资料，再执行采集与评分。
-
-### 继续上次采集
-
-默认行为是断点续采：结果文件中已完成的题目会跳过，未完成或失败的题目继续执行。
+验证：
 
 ```powershell
-python -m rag_qa.rag_assessment.collect_rag_results `
-  --output rag_qa/rag_assessment/enterprise_evaluate_results.json
-
-python -m rag_qa.rag_assessment.rag_evaluator `
-  --data rag_qa/rag_assessment/enterprise_evaluate_results.json `
-  --progress rag_qa/rag_assessment/enterprise_ragas_scores_progress.json
+curl.exe http://127.0.0.1:8081/health
+curl.exe http://127.0.0.1:8081/api/filters
 ```
 
-### 重新跑一轮（不覆盖历史结果）
+- `/health` 的 `ready` 和 `retrieval_ready` 都为 `true`，说明模型、Milvus 和检索链路就绪。
+- `/api/filters` 返回可选产品、平台、版本和资料分类。
+- 输入“订单一直同步不过来”，应返回一个追问，而不是直接给通用清单。
 
-重新采集必须指定一个**新的输出文件**；`--restart` 会忽略已有完成记录并重做全部题目。若目标文件已存在，脚本会在加载模型前拒绝执行，除非显式加 `--overwrite`。评分时同时指定新的进度文件。
+## 现场演示
 
-```powershell
-# 先确认新文件名没有被历史结果占用；下面的 round3 是示例，可换成当天日期
-Test-Path rag_qa/rag_assessment/enterprise_evaluate_results_round3.json
+| 演示类型 | 问题 | 筛选 |
+| --- | --- | --- |
+| 能找到出处的常见故障 | 抖店电子面单取号失败，应该按什么顺序排查？ | 平台：抖音电商 |
+| 同一问题不同版本 | 客户是旺店通客户端 V2.4.4 及以下，能用 `trade_push.php` 创建原始订单接口吗？ | 产品：旺店通ERP；版本：客户端 V2.4.4 及以下 |
+| 同一问题不同版本 | 客户是旺店通客户端 V2.4.5.0，能用 `trade_push.php` 创建原始订单接口吗？ | 产品：旺店通ERP；版本：客户端 V2.4.5.0 |
+| 缺少现场信息 | 订单一直同步不过来 | 不筛选 |
+| 追问后补充信息 | 抖音店铺，ERP 提示错误码 100 | 不筛选 |
+| 资料不足 | 拼多多电子面单取号返回错误码 E202 是什么意思？ | 平台：拼多多 |
 
-python -m rag_qa.rag_assessment.collect_rag_results `
-  --output rag_qa/rag_assessment/enterprise_evaluate_results_round3.json `
-  --restart
+本次实际运行结果：6 轮演示全部完成，完整回答、来源、引用编号和失败案例见 [`warehouse_demo_report.md`](rag_qa/rag_assessment/warehouse_demo_report.md)，原始结果见 [`warehouse_demo_results.json`](rag_qa/rag_assessment/warehouse_demo_results.json)。
 
-python -m rag_qa.rag_assessment.rag_evaluator `
-  --data rag_qa/rag_assessment/enterprise_evaluate_results_round3.json `
-  --progress rag_qa/rag_assessment/enterprise_ragas_scores_round3.json
-```
+## 评估结果与局限
 
-`round2` 文件已存在，仅用于历史对照；不要把它当作新一轮输出。若确实要覆盖某个已有文件，必须同时写 `--restart --overwrite`。
+评估使用 18 道题：13 道有明确依据的检索题、3 道缺信息追问、2 道资料不足；新增题覆盖版本上边界、版本下边界、跨平台混淆、错误前提、错误码资料不足和面单缺信息追问。题目和预期依据见 [`warehouse_evaluate_data.json`](rag_qa/rag_assessment/warehouse_evaluate_data.json)。
 
-只想先试跑少量题目时加 `--limit 2`。采集会真实调用已配置的大模型，并记录每题的回答和实际放入提示词的检索资料；评估默认使用本地 Ollama 的 `qwen2.5:7b` 和 `bge-m3` 计算 RAGAS。
+结果文件按评分口径分开保存：
 
-### 统计口径
+- [`warehouse_evaluate_results.json`](rag_qa/rag_assessment/warehouse_evaluate_results.json)：修复评估误判前的历史记录，保留当时的 18/18 规则回归结果，用于对比，不覆盖。
+- [`warehouse_evaluate_results_v2.json`](rag_qa/rag_assessment/warehouse_evaluate_results_v2.json)：修复后的新口径结果，2026-11-14 用真实 Milvus + 模型服务重跑。
 
-- **RAGAS 指标**：只计算“有依据且检索到资料”的样本；资料不足题和检索未命中都不进入四项均值。
-- **有依据题**：以是否检索到资料、回答是否含引用编号，以及人工核对参考答案为准。
-- **资料不足题**：单独统计“检索是否命中”和“回答是否正确说明资料不足”。
-  - 通过：明确说明资料不足/缺少依据，且没有给出无依据的具体金额、天数、时限等结论；
-  - 失败：没有说明资料不足，或先说资料不足又给出具体猜测（例如“资料不足，但应该是每人 500 元”）；
-  - 待人工复核：含数字表述、但自动规则无法判断是引用还是结论的回答。
-- 检索未命中会分别统计“有依据题未命中”和“资料不足题未命中”，不能把未命中直接算作通过。
-- 采集失败或回答为空的题目单独计入“采集失败/未完成”，既不算检索命中，也不计入资料不足题的通过/失败；需重新采集后再评分。
+新口径（`v2`）把“命中预期文档、引用编号合法、关键结论正确”拆开检查，不再用关键词覆盖代替结论判断：
 
-只有实际完成采集和评分后，才应把本轮指标写入文档。历史文件 `enterprise_evaluate_results.json`、`enterprise_ragas_scores_progress.json` 保留用于对照，不要用模拟分数或旧学科结果替代企业场景成绩。
+| 指标 | 结果 | 分母说明 |
+| --- | --- | --- |
+| 总体通过 | 18/18 | 所有题 |
+| 预期文档命中 | 13/13 | 仅 13 道有依据题；空来源标题不算命中 |
+| 引用编号合法 | 13/13（越界 0） | 至少一个 `[n]`，且所有编号都在本次来源编号范围内 |
+| 版本筛选通过 | 6/6（其中 partial 1） | 仅设置了版本筛选的 6 道；要求至少一个匹配、不能混入不适用/仅供对照来源 |
+| 关键结论自动判定 | 8/8 通过，0 失败，5 待人工复核 | 有明确可判定结论的 8 道题；无法稳定自动判断的标为人工复核，不冒充通过 |
+| 缺信息追问正确 | 3/3 | 仅追问题 |
+| 资料不足处理正确 | 2/2 | 仅资料不足题 |
 
-上一轮实测（2026-11-14，Milvus Lite + 真实 BGE-M3/BGE-Reranker + qwen-plus 采集，Ollama 评估）：
+**新旧评分口径差异**：旧口径的总体通过条件是“来源标题命中 + 关键词覆盖 ≥ 50% + 答案出现 `[n]` + 版本条件兼容”，它不检查引用编号是否越界，也不检查答案结论是否与资料相反，因此“只召回 1 个来源却写 `[9]`”或“关键词齐全但结论说 V2.4.4 可以调用 `trade_push.php`”都可能被判为通过。新口径分别检查：
 
-- 18 题中 14 题有检索资料、4 题资料不足；4 道资料不足题全部检索为空。
-- RAGAS（14 条）：faithfulness 0.976，answer_relevancy 0.909，context_precision 1.000，context_recall 0.982。
-- 需人工复核：新员工账号题 faithfulness 0.667；办公设备流程题 context_recall 0.75；请假材料题回答没有保留引用编号，但来源列表正确。
+- **文档命中**：来源标题包含预期文档标题之一，空标题直接排除。只说明检索到了预期资料。
+- **引用合法**：解析答案中的全部 `[n]`，要求至少一个且全部落在本次来源编号范围内；越界编号直接失败。
+- **关键结论**：题目可写结构化预期，如必须出现 `V2.4.5.0`、必须出现“不能/不支持”、禁止出现“V2.4.4 可以调用 trade_push”；结论相反即失败，无法稳定自动判断的标为“待人工复核”。
+- **版本筛选**：返回来源必须至少有一份明确适用，不能混入不适用、仅供多版本对照或无法判断的来源；部分重叠（partial）单独记录并要求回答写明附加条件。
+- **追问 / 资料不足**：沿用原有规则，检查是否先问信息、是否明确说明资料不足。
 
-## 高频问答与分类模型
+**这些数字是规则回归结果，不是“准确率 100%”。** 关键词覆盖仍保留为辅助记录，但不再单独决定通过。
 
-### 标准问答库
+本次实际运行后端为 Milvus 服务端原生混合检索（`hybrid_mode = native`，`WeightedRanker`），不是客户端 RRF。
 
-`mysql_qa/db/faq_knowledge_base.csv` 现有 21 条企业高频问答，覆盖制度规范 7 条、产品手册 5 条、业务流程 5 条、员工入职 4 条；每条的 `来源文档` 都指向 `rag_qa/data` 中的虚构演示文件。跨文档、依赖个人条件或资料不足的问题不进入 FAQ，继续走检索。
+改造前的旧场景资料、评估结果和验收题已在清理中删除，仓库只保留仓配 SaaS 场景的资料、代码和评估结果，不与本次指标混算。
 
-首次部署或更新 FAQ 后执行（可重复运行）：
+## 失败案例
 
-```powershell
-python -m mysql_qa.import_faq --dry-run
-python -m mysql_qa.import_faq
-```
+首次评估中，E06（库存差异后果）和 E08（面单接入准备）被错误地要求补充现场信息，导致 0 来源、0 引用。定位结果是**答案生成链路中的追问路由问题**，不是召回或版本过滤：库存词被泛化的“同步”订单词抢占，面单准备类问题被当成故障定位。修复 `triage.py` 的领域优先级，并对“问后果、区别、定义、准备、流程”的问题跳过追问后，同一题集复测通过。
 
-导入按 `资料分类 + 问题` 判重，只插入不存在的记录，不更新、不清空已有 `jpkb` 数据；MySQL 不可用时应用自动回退本地 CSV。FAQ 命中时来源显示“标准问答库 · 原始文档名”。
-
-### BERT 企业问题分类
-
-训练数据 `rag_qa/classify_data/enterprise_scope_v2.jsonl` 共 240 条，按 `family` 改写族划分训练/测试（196/44），测试集不包含训练集中的近似改写，也不复用 RAG 评估题。企业资料类的定义是“必须查本地资料才能确认的业务事实”，即使当前资料没有覆盖也归入该类。
-
-```powershell
-python -m rag_qa.core.query_classifier --train
-python -m rag_qa.core.query_classifier --predict "VPN 是什么？" "我们公司的 VPN 怎么申请？"
-python -m rag_qa.core.query_classifier --compare-routing
-```
-
-模型保存在 `rag_qa/models/bert_enterprise_classifier`，指标写入 `training_metrics.json`，规则对比写入 `routing_comparison.json`。本轮独立测试集：准确率 0.977，企业资料精确率 0.960、召回率 1.000；仅规则召回率 0.792，规则+BERT 召回率 1.000，代价是 1 条通用问题被误判为企业资料。
-
-分流原则：规则判定需要本地资料时直接检索，BERT 不参与；规则判为通用知识时，只有 BERT 以 ≥0.80 置信度判为企业资料才反向触发检索；定义类问题（如“VPN 是什么？”）保留保护；模型缺失、异常或置信度不足时沿用规则结果。
-
-## 数据隔离与限制
-
-企业项目使用 Milvus 数据库 `enterprise_knowledge` 下的集合 `enterprise_knowledge_qa`，以及对话文件 `storage/enterprise_history.sqlite3`。验证时可设置 `QA_HISTORY_PATH` 指向独立的会话库，避免写入正式历史。旧数据已单独备份，企业项目不会使用旧集合和历史。FAQ 已补充 21 条虚构演示标准问答；企业分类模型已训练并参与分流，模型或置信度不可靠时回退规则判断。
-
-真实企业制度、审批信息和产品规则须由使用者提供并核验。示例资料均为虚构。内部问题在检索为空或重排分数低于 `min_answer_score` 时直接提示资料不足，不猜测内部人员、审批规则或联系方式；通用概念问题不检索企业资料，并在回答前标明未引用知识库。MySQL 不可用时回退本地 FAQ（来源会显示 `CSV`），Redis 不可用时回退内存缓存；模型或向量库不可用时检索不可用。
-
-远程访问需配置 `HOST` 和 `QA_ACCESS_TOKEN`，并建议配合 HTTPS；访问口令不是用户账号或权限系统。
+另有一条已知限制：平台已知、但报错原文未知时，系统仍会先追问错误码，首轮不给通用排查清单。这是“避免编造”和“首轮效率”之间的取舍。
 
 ## 测试
 
@@ -167,4 +188,35 @@ python -m pytest tests -q
 node tests/test_upload_selection.js
 ```
 
-自动化测试中的模拟依赖不能替代真实模型与 Milvus 的端到端验证。
+本次运行结果：Python 测试 113 项通过（含新增回归用例），网页文件选择测试通过。新增回归测试覆盖的反例：
+
+- [`tests/test_version_scope.py`](tests/test_version_scope.py)：`V2.4.5` 与 `V2.4.5.0` 尾部零等价、具体版本落在资料范围内/外、范围部分重叠、边界值、网页版与“平台最新”、多版本对照仅供比较；并验证部分重叠时回答写明附加条件、范围型选择无法确认时追问完整版本号。
+- [`tests/test_triage_clarification.py`](tests/test_triage_clarification.py)：只说“有报错/有错误码”但没给具体值时要追问、提供错误码或报错原文时不再追问、确实看不到报错时不重复追问、知识型提问不追问、补充“错误码 100”后接上一轮的订单问题与平台。
+- [`tests/test_warehouse_eval_guards.py`](tests/test_warehouse_eval_guards.py)：空来源标题不算命中、只有 1 个来源却写 `[9]` 判失败、关键词相同但结论相反（声称 V2.4.4 可调用 `trade_push.php`）判失败、正确结论通过、只有部分重叠或多版本对照来源时不算适用、人工复核不冒充失败。
+- [`tests/test_faq_api_integration.py`](tests/test_faq_api_integration.py)：FAQ 命中后追问能继承上一轮上下文；切换资料分类、产品、版本或平台后旧范围上下文不混入。
+
+## FAQ
+
+`mysql_qa/db/faq_knowledge_base.csv` 共 15 条仓配域 FAQ，覆盖订单同步、库存差异、面单取号和打印。MySQL 库名为 `warehouse_faq`，表为 `faq`。首次使用先建库：
+
+```sql
+CREATE DATABASE warehouse_faq CHARACTER SET utf8mb4;
+```
+
+导入命令：
+
+```powershell
+python -m mysql_qa.import_faq
+```
+
+MySQL 不可用时回退读取本地 CSV。含错误码、版本筛选或需要追问的问题不会走 FAQ。
+
+## 已知限制
+
+- 资料只覆盖旺店通、抖店、拼多多三家公开文档；快手、淘宝、京东等平台的问题会明确说明资料不足。
+- 版本筛选是“资料适用版本”判断，不是接口行为模拟。客户版本落在两个标签之间时，需要实施顾问确认完整版本号。
+- 版本过滤发生在召回之后，存在漏召回风险；没有做版本预过滤和按版本分桶召回。
+- 引用校验只检查编号是否在本轮来源范围内，不检查引用是否支持结论；没有 claim-level 事实校验。
+- 评估是小规模规则回归，题目由本人编写，不能代表真实工单分布；新口径 18/18 中仍有 5 道结论标为待人工复核，不等于生产准确率。
+- 当前是单机共享工作空间，没有账号、角色权限、多租户隔离、审计和工单系统集成。
+- 未做并发压测、长期运行稳定性验证和真实客户数据脱敏流程。若用于真实企业，至少还需要：授权与密级管理、客户数据隔离、工单系统对接、人工复核与反馈闭环、引用一致性校验、版本发布后的资料更新机制。

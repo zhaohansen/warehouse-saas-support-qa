@@ -16,7 +16,7 @@ def main(query_mode=True, directory_path=None):
     total=0
     try:
         for source in config.VALID_SOURCES:
-            directory=root/(source+'_data')
+            directory=root/source
             if not directory.is_dir(): continue
             documents=process_documents(str(directory))
             store.replace_documents(documents)
@@ -28,7 +28,7 @@ def main(query_mode=True, directory_path=None):
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description='企业知识库问答：建库或交互提问')
+    parser=argparse.ArgumentParser(description='仓配 SaaS 实施与售后知识问答：建库或交互提问')
     parser.add_argument('--data-processing',action='store_true')
     parser.add_argument('--data-dir')
     args=parser.parse_args()
