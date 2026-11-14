@@ -1,4 +1,4 @@
-"""FAQ 检索：使用精确匹配、保守的词汇相似度评分和学科隔离。"""
+"""FAQ 检索：使用精确匹配、保守的词汇相似度评分和分类隔离。"""
 import hashlib
 import json
 import re
@@ -47,6 +47,11 @@ class BM25Search:
         self.bm25_model = BM25Okapi(self.tokenized_questions) if self.records else None
         return self.question_texts, self.tokenized_questions
 
+    @staticmethod
+    def _match(record):
+        return dict(answer=record['answer'], question=record['question'],
+                    source=record.get('source', ''), source_doc=record.get('source_doc', ''))
+
     def search(self, query, threshold=0.85, source_filter=None):
         if not isinstance(query, str) or not query.strip():
             raise ValueError('问题不能为空')
@@ -54,15 +59,19 @@ class BM25Search:
         if not candidates:
             return None
         key_data = [self.revision, source_filter, threshold, normalize_question(query)]
-        key = 'faq:v3:' + hashlib.sha256(json.dumps(key_data, ensure_ascii=False).encode()).hexdigest()
+        key = 'faq:v4:' + hashlib.sha256(json.dumps(key_data, ensure_ascii=False).encode()).hexdigest()
         cached = self.redis_client.get_data(key)
-        if cached: return cached
+        if cached:
+            if isinstance(cached, dict):
+                return cached
+            # 兼容升级前写入的字符串缓存。
+            return dict(answer=cached, question='', source='', source_doc='')
         exact = [r for r in candidates if normalize_question(r['question']) == normalize_question(query)]
         if exact:
             # 候选答案冲突时存在歧义，交由后续检索处理。
             answers = {r['answer'] for r in exact}
             if len(answers) != 1: return None
-            answer = exact[0]['answer']
+            record = exact[0]
         else:
             if self.bm25_model is not None and len(candidates) > 20:
                 raw_scores = self.bm25_model.get_scores(preprocess_text(query))
@@ -78,11 +87,11 @@ class BM25Search:
             ambiguous = [r for candidate_score, r in ranked if score - candidate_score < 0.03]
             if len({r['answer'] for r in ambiguous}) > 1:
                 return None
-            answer = record['answer']
-        self.redis_client.set_data(key, answer, ttl=600)
+        match = self._match(record)
+        self.redis_client.set_data(key, match, ttl=600)
         source = getattr(self, "faq_source", None)
         if source:
             logger.info("FAQ 题库匹配成功，返回答案（题库来源：%s）", source)
         else:
             logger.info("FAQ 题库匹配成功，返回答案")
-        return answer
+        return match

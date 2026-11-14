@@ -64,4 +64,29 @@ class WebTests(unittest.TestCase):
         self.assertEqual([message['type'] for message in messages], ['start', 'token', 'end'])
         self.assertEqual(messages[1]['token'], '模拟回答')
 
+    def test_websocket_keeps_multiple_tokens_and_sources(self):
+        class ChunkedQA(FakeQA):
+            def query(self, query, **kwargs):
+                callback = kwargs.get('source_callback')
+                if callback:
+                    callback([{'index': 1, 'title': '产品手册', 'source_doc': '虚构演示-协作平台产品手册.txt'}])
+                yield '第一段', False
+                yield '第二段 [1]', True
+
+        env = patch.dict(os.environ, {'QA_ACCESS_TOKEN': 'test-token'})
+        env.start()
+        self.addCleanup(env.stop)
+        client = TestClient(web.create_app(qa_factory=lambda: ChunkedQA(),
+                                          importer_factory=lambda qa: FakeImporter()))
+        self.addCleanup(client.close)
+        client.__enter__()
+        self.addCleanup(client.__exit__, None, None, None)
+        with client.websocket_connect('/api/stream', headers={'Authorization': 'Bearer test-token'}) as socket:
+            socket.send_json({'query': '无法登录协作平台应该联系谁？', 'source_filter': 'python'})
+            messages = [socket.receive_json() for _ in range(4)]
+        self.assertEqual([message['type'] for message in messages], ['start', 'token', 'token', 'end'])
+        self.assertEqual(''.join(message['token'] for message in messages if message['type'] == 'token'),
+                         '第一段第二段 [1]')
+        self.assertEqual(messages[-1]['sources'][0]['title'], '产品手册')
+
 if __name__ == '__main__': unittest.main()

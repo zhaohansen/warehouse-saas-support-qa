@@ -1,70 +1,170 @@
-# 知序 · 学科知识助手
+# 企业知识库智能问答系统
 
-面向 Python、Java、AI、MySQL、Redis 的个人知识问答工作台。支持 FAQ、知识库检索、真正的流式回答，以及 PDF / PPTX / TXT 网页导入。
+面向企业知识查询场景的 RAG 演示项目。用户可以导入企业制度、产品手册、业务流程和入职资料，通过自然语言查找资料并获取带来源的回答。项目目前是共享空间，没有多用户账号、角色权限或多租户隔离，也未声称已经在真实企业部署。
 
-## 启动
+## 功能
 
-启动前先确认 Docker Desktop 与 Milvus 容器已运行；如果后端在 Milvus 就绪前启动过，需要重启后端。打开 `/health`，`retrieval_ready` 为 `true` 表示知识库已就绪。Windows 上若系统 `python` 指向商店占位程序，请直接调用已安装的 `edu_rag` 环境解释器，例如 `C:\Software\Anaconda3\envs\edu_rag\python.exe app.py`（按本机实际路径调整）。
+- 支持 PDF、PPTX、DOCX 和 UTF-8 TXT 文件导入、资料分类、查看与删除。
+- 使用 BGE-M3 生成稠密和稀疏向量，借助 Milvus 混合检索、重排和大模型生成回答，并展示检索来源。
+- 支持流式输出、停止生成、对话历史和网页访问口令；检索失败时单独提示。
+- 企业问题会先检索知识库：检索不到或相关度不足时明确说明缺少依据；通用概念问题走常识回答并标注未引用知识库。
+- 附带四类共 16 份虚构企业资料与 18 条配套评估问题，全部仅供演示，不能当作真实企业制度。
 
-使用已有的 `edu_rag` Python 环境，从项目目录运行：
+## 最短演示路径（Windows）
 
-```powershell
-python app.py
-```
+1. 复制 `base/config.example.ini` 为 `base/config.ini`，确认模型路径、大模型服务和 Milvus 配置。没有 Milvus 服务端时，在 `[milvus]` 填写 `uri = ./storage/milvus_lite.db`，或设置环境变量 `QA_MILVUS_URI`（不要用 `MILVUS_URI` 指向本地文件，pymilvus 会把它当成服务地址），使用 Milvus Lite。
+2. 安装依赖并在项目根目录启动：`python app.py`。默认地址 http://127.0.0.1:8081，访问 `/health` 确认 `ready` 和 `retrieval_ready` 都为 `true`。
+3. 打开网页，在「导入资料」中按分类导入以下 **4 份** 文件即可完成最短演示（服务不会自动导入）：
 
-默认打开 http://127.0.0.1:8081 ，可通过 `PORT` 环境变量调整。修改代码后需要重启后端并刷新网页。
+| 分类 | 文件 |
+| --- | --- |
+| 制度规范 `policies` | `rag_qa/data/policies_data/虚构演示-请假与报销规范.txt` |
+| 产品手册 `products` | `rag_qa/data/products_data/虚构演示-协作平台登录故障与账号恢复.txt` |
+| 业务流程 `operations` | `rag_qa/data/operations_data/虚构演示-客户反馈处理流程.txt` |
+| 员工入职 `onboarding` | `rag_qa/data/onboarding_data/虚构演示-新员工入职指南.txt` |
 
-首次安装请先按硬件安装对应的 PyTorch（CPU、CUDA 或 ROCm），再使用 `pip install -r requirements.txt`；已有 AMD ROCm 环境请保留原来的 PyTorch，不要强制重装，复制 `base/config.example.ini` 为 `base/config.ini` 后配置 MySQL、Redis、Milvus 与模型路径。模型通常位于 `rag_qa/models/`；模型相对路径以项目根目录为基准，也可以填写绝对路径。
+4. 依次提问：
+   - 「无法登录协作平台应该联系谁？」应回答 IT 服务台并提供来源；
+   - 「新员工领取办公设备的流程顺序是什么？」应给出申请、核对、配置登记、当面确认四步并引用入职指南；
+   - 「节日福利金额是多少？」应明确说明资料不足，不猜测金额。
+5. 在同一会话追问「那应该找谁？」，或在分类筛选中只选「产品手册」后再问报销问题，观察追问上下文与分类过滤效果。
 
-模型服务由 `base/config.ini` 中的 `base_url` 和 `model` 决定。使用 DeepSeek 官方接口时，从环境变量 `DEEPSEEK_API_KEY` 读取密钥；使用其他兼容接口时，优先读取 `DASHSCOPE_API_KEY`，否则使用配置文件的 `api_key`。不要把真实密钥提交到仓库。
+修改代码或配置后需重启服务。首次安装依赖及模型：按硬件安装兼容的 PyTorch 后安装 `requirements.txt`；模型权重放在 `rag_qa/models/`，密钥使用环境变量（`DASHSCOPE_API_KEY` 或 `DEEPSEEK_API_KEY`），不要写入配置文件。
 
-## 使用
+## 完整评估资料与批量建库
 
-- 直接提问，或先限定学科。FAQ 只在相应学科中匹配；未命中再检索资料。
-- 点击「导入资料」，选择学科与 PDF、PPTX、UTF-8 TXT。单文件上限 20 MB，同一学科的相同文件不重复导入。
-- 「我的资料库」展示导入文件、学科、知识块数量及识别警告。扫描件解析可能需要更长时间。
-- 最终回答逐段显示，可停止生成、复制回答和代码、导出当前对话。中断或失败的半截答案不会被作为完整回答保存。
-- 左侧可搜索、切换与删除会话；支持手机布局及深浅主题。
+企业评估题依赖 `rag_qa/data` 下 **全部 16 份** 文件（四个分类各 4 份），导入不全会导致跨文档题和部分事实题召回不到依据：
 
-## 数据与模型
+| 分类目录 | 文件 |
+| --- | --- |
+| `policies_data` | 虚构演示-请假与报销规范.txt；虚构演示-请假申请与销假流程.txt；虚构演示-费用报销办理指引.txt；虚构演示-差旅申请与行程变更指引.txt |
+| `products_data` | 虚构演示-协作平台产品手册.txt；虚构演示-协作平台使用指南.txt；虚构演示-协作平台角色与权限说明.txt；虚构演示-协作平台登录故障与账号恢复.txt |
+| `operations_data` | 虚构演示-客户反馈处理流程.txt；虚构演示-客户反馈登记规范.txt；虚构演示-工单分级与超时升级规则.txt；虚构演示-工单交接与关闭规范.txt |
+| `onboarding_data` | 虚构演示-新员工入职指南.txt；虚构演示-新员工入职第一天安排.txt；虚构演示-办公设备申领与异常处理.txt；虚构演示-系统账号与权限开通指引.txt |
 
-聊天记录存储在 `storage/history.sqlite3`，不会只保留 5 轮。给模型的上下文仍只取最近 5 轮并限制字数。网页单次最多读取最近 500 轮，数据库保留完整记录。
-
-首次启动会尝试将旧 MySQL `conversations` 表复制到本地历史库，成功后不重复迁移；不删除或修改原记录。过去已被旧程序删除的聊天无法恢复。备份历史时应先停止服务，再复制 `storage/`。
-
-文件保存到对应学科 `uploads/` 下，文件名、知识块数量及警告另存为隐藏的 JSON 元数据。新导入的 PDF/PPTX 按页或幻灯片保留来源；旧索引缺少的页码不会凭空补齐，可重新建库以更新。
+在项目根目录执行批量建库（使用 `base/config.ini` 中的同一数据库 `enterprise_knowledge`、集合 `enterprise_knowledge_qa` 和同一套分块参数）：
 
 ```powershell
 python -m rag_qa.main --data-processing
 ```
 
-建库会按文件更新索引并清理该文件的旧块，不清空其他文件或学科。已从磁盘删除的文件不会自动从向量库删除。不要单独清空向量库后依赖文件的重复导入标记，应重新执行建库。
+使用 Milvus Lite 时，建库与启动网页必须指向同一个本地库文件：
 
-文本转向量与重排按配置使用 CUDA，不可用时回退 CPU；模型访问串行化以降低并发显存压力。OCR 按需初始化并复用。PPT 个别 WMF/EMF 或损坏图片无法读取时会跳过该图，网页明确显示警告；该图中的文字没有入库。需要这部分内容时，把图片转为 PNG/JPG，或导出 PDF 后导入。
+```powershell
+$env:QA_MILVUS_URI = "./storage/milvus_lite.db"
+python -m rag_qa.main --data-processing
+python app.py
+```
 
-MySQL 不可用时 FAQ 回退本地 CSV；Redis 不可用时回退有容量与过期限制的内存缓存。向量库或本地模型不可用时，标准 FAQ 与聊天记录仍可使用。本地检索未命中时，一般学习与编程问题仍会用通用知识回答，并明确说明未引用本地资料；用户明确要求依据文档或涉及课件中的具体参数、评分标准、内部规定等特定事实时，资料不足仍会提示补充。检索服务异常会单独报告，不冒充正常知识库回答。
+批量建库只扫描四个 `*_data` 目录中的正式资料，会跳过网页导入产生的 `uploads/` 哈希副本，避免同一文件重复入库。`rag_qa/data` 之外的验收题文件 `rag_qa/demo_acceptance_questions.md` 不会被建库命令读取，也不应上传到知识库。
 
-BERT 分类器缺失时默认走知识检索，不使用未经训练的随机分类头。默认训练语料为 `rag_qa/classify_data/subject_scope_5000.json`（通用知识 / 学科资料各 2500 条），由 `rag_qa/classify_data/subject_scope/generate.py` 生成。该数据集按知识领域分类，学科资料包含 Python、Java、AI、MySQL 和 Redis 相关问题。旧的 `build_dataset.py` 采用不同的标注规则，不是默认数据集的生成器。
+建库前可核对当前实际使用的数据库、集合和 Milvus 地址（不会输出任何密钥）：
 
-标准 FAQ 库 `mysql_qa/db/faq_knowledge_base.csv` 只覆盖 Python、Java、AI、MySQL、Redis 五门学科，每门 20 个知识点、两种问法；读取时会按 `valid_sources` 过滤，避免旧题库中其它学科的条目混入回答。`rag_qa/rag_assessment/rag_evaluate_data.json` 是覆盖五门学科各 20 题的 RAGAS 评估题库（共 100 条，分基础概念、原理分析、概念对比、应用场景和资料依据不足五类），用于衡量忠实度、答案相关性与上下文精确率、召回率；`splits/` 下是按学科拆分的版本，额外保留 `subject`、`category`、`has_sufficient_evidence` 和 `note`，便于分组统计或剔除资料不足题。主文件每条只保留 `question`、`answer`、`context`、`ground_truth`，其中 `answer` 和 `context` 需先用系统实跑回填，否则评估脚本会直接报错提示。
+```powershell
+python -c "from base.config import config; print('collection=', config.MILVUS_COLLECTION_NAME); print('database=', config.MILVUS_DATABASE_NAME); print('uri=', config.MILVUS_URI or f'{config.MILVUS_HOST}:{config.MILVUS_PORT}')"
+```
 
-## 访问范围
+建库和启动网页必须使用同一个 `uri`、数据库和集合：如果建库时设置了 `QA_MILVUS_URI`，启动 `app.py` 的同一个终端也要保留该环境变量。
 
-默认只监听本机 `127.0.0.1`。这是单个共享学习空间，不提供独立的多用户账号。
+## 企业评估
 
-远程使用需设置 `HOST` 和 `QA_ACCESS_TOKEN`，建议使用 HTTPS 与足够长的随机口令。网页通过访问口令验证，API 也支持 `Authorization: Bearer <访问口令>`；该口令与模型 API 密钥是两回事。未设置口令时，远程 API 与 WebSocket 访问会被拒绝。
+`rag_qa/rag_assessment/enterprise_evaluate_data.json` 包含 18 条根据虚构演示资料编写的问题，覆盖直接事实、流程顺序、跨文档、换一种问法和资料不足五类。先导入全部 16 份资料，再执行采集与评分。
 
-请求内容和来源经过校验，浏览器跨站写入被拒绝；模型返回的文本不会作为 HTML 执行。
+### 继续上次采集
+
+默认行为是断点续采：结果文件中已完成的题目会跳过，未完成或失败的题目继续执行。
+
+```powershell
+python -m rag_qa.rag_assessment.collect_rag_results `
+  --output rag_qa/rag_assessment/enterprise_evaluate_results.json
+
+python -m rag_qa.rag_assessment.rag_evaluator `
+  --data rag_qa/rag_assessment/enterprise_evaluate_results.json `
+  --progress rag_qa/rag_assessment/enterprise_ragas_scores_progress.json
+```
+
+### 重新跑一轮（不覆盖历史结果）
+
+重新采集必须指定一个**新的输出文件**；`--restart` 会忽略已有完成记录并重做全部题目。若目标文件已存在，脚本会在加载模型前拒绝执行，除非显式加 `--overwrite`。评分时同时指定新的进度文件。
+
+```powershell
+# 先确认新文件名没有被历史结果占用；下面的 round3 是示例，可换成当天日期
+Test-Path rag_qa/rag_assessment/enterprise_evaluate_results_round3.json
+
+python -m rag_qa.rag_assessment.collect_rag_results `
+  --output rag_qa/rag_assessment/enterprise_evaluate_results_round3.json `
+  --restart
+
+python -m rag_qa.rag_assessment.rag_evaluator `
+  --data rag_qa/rag_assessment/enterprise_evaluate_results_round3.json `
+  --progress rag_qa/rag_assessment/enterprise_ragas_scores_round3.json
+```
+
+`round2` 文件已存在，仅用于历史对照；不要把它当作新一轮输出。若确实要覆盖某个已有文件，必须同时写 `--restart --overwrite`。
+
+只想先试跑少量题目时加 `--limit 2`。采集会真实调用已配置的大模型，并记录每题的回答和实际放入提示词的检索资料；评估默认使用本地 Ollama 的 `qwen2.5:7b` 和 `bge-m3` 计算 RAGAS。
+
+### 统计口径
+
+- **RAGAS 指标**：只计算“有依据且检索到资料”的样本；资料不足题和检索未命中都不进入四项均值。
+- **有依据题**：以是否检索到资料、回答是否含引用编号，以及人工核对参考答案为准。
+- **资料不足题**：单独统计“检索是否命中”和“回答是否正确说明资料不足”。
+  - 通过：明确说明资料不足/缺少依据，且没有给出无依据的具体金额、天数、时限等结论；
+  - 失败：没有说明资料不足，或先说资料不足又给出具体猜测（例如“资料不足，但应该是每人 500 元”）；
+  - 待人工复核：含数字表述、但自动规则无法判断是引用还是结论的回答。
+- 检索未命中会分别统计“有依据题未命中”和“资料不足题未命中”，不能把未命中直接算作通过。
+- 采集失败或回答为空的题目单独计入“采集失败/未完成”，既不算检索命中，也不计入资料不足题的通过/失败；需重新采集后再评分。
+
+只有实际完成采集和评分后，才应把本轮指标写入文档。历史文件 `enterprise_evaluate_results.json`、`enterprise_ragas_scores_progress.json` 保留用于对照，不要用模拟分数或旧学科结果替代企业场景成绩。
+
+上一轮实测（2026-11-14，Milvus Lite + 真实 BGE-M3/BGE-Reranker + qwen-plus 采集，Ollama 评估）：
+
+- 18 题中 14 题有检索资料、4 题资料不足；4 道资料不足题全部检索为空。
+- RAGAS（14 条）：faithfulness 0.976，answer_relevancy 0.909，context_precision 1.000，context_recall 0.982。
+- 需人工复核：新员工账号题 faithfulness 0.667；办公设备流程题 context_recall 0.75；请假材料题回答没有保留引用编号，但来源列表正确。
+
+## 高频问答与分类模型
+
+### 标准问答库
+
+`mysql_qa/db/faq_knowledge_base.csv` 现有 21 条企业高频问答，覆盖制度规范 7 条、产品手册 5 条、业务流程 5 条、员工入职 4 条；每条的 `来源文档` 都指向 `rag_qa/data` 中的虚构演示文件。跨文档、依赖个人条件或资料不足的问题不进入 FAQ，继续走检索。
+
+首次部署或更新 FAQ 后执行（可重复运行）：
+
+```powershell
+python -m mysql_qa.import_faq --dry-run
+python -m mysql_qa.import_faq
+```
+
+导入按 `资料分类 + 问题` 判重，只插入不存在的记录，不更新、不清空已有 `jpkb` 数据；MySQL 不可用时应用自动回退本地 CSV。FAQ 命中时来源显示“标准问答库 · 原始文档名”。
+
+### BERT 企业问题分类
+
+训练数据 `rag_qa/classify_data/enterprise_scope_v2.jsonl` 共 240 条，按 `family` 改写族划分训练/测试（196/44），测试集不包含训练集中的近似改写，也不复用 RAG 评估题。企业资料类的定义是“必须查本地资料才能确认的业务事实”，即使当前资料没有覆盖也归入该类。
+
+```powershell
+python -m rag_qa.core.query_classifier --train
+python -m rag_qa.core.query_classifier --predict "VPN 是什么？" "我们公司的 VPN 怎么申请？"
+python -m rag_qa.core.query_classifier --compare-routing
+```
+
+模型保存在 `rag_qa/models/bert_enterprise_classifier`，指标写入 `training_metrics.json`，规则对比写入 `routing_comparison.json`。本轮独立测试集：准确率 0.977，企业资料精确率 0.960、召回率 1.000；仅规则召回率 0.792，规则+BERT 召回率 1.000，代价是 1 条通用问题被误判为企业资料。
+
+分流原则：规则判定需要本地资料时直接检索，BERT 不参与；规则判为通用知识时，只有 BERT 以 ≥0.80 置信度判为企业资料才反向触发检索；定义类问题（如“VPN 是什么？”）保留保护；模型缺失、异常或置信度不足时沿用规则结果。
+
+## 数据隔离与限制
+
+企业项目使用 Milvus 数据库 `enterprise_knowledge` 下的集合 `enterprise_knowledge_qa`，以及对话文件 `storage/enterprise_history.sqlite3`。验证时可设置 `QA_HISTORY_PATH` 指向独立的会话库，避免写入正式历史。旧数据已单独备份，企业项目不会使用旧集合和历史。FAQ 已补充 21 条虚构演示标准问答；企业分类模型已训练并参与分流，模型或置信度不可靠时回退规则判断。
+
+真实企业制度、审批信息和产品规则须由使用者提供并核验。示例资料均为虚构。内部问题在检索为空或重排分数低于 `min_answer_score` 时直接提示资料不足，不猜测内部人员、审批规则或联系方式；通用概念问题不检索企业资料，并在回答前标明未引用知识库。MySQL 不可用时回退本地 FAQ（来源会显示 `CSV`），Redis 不可用时回退内存缓存；模型或向量库不可用时检索不可用。
+
+远程访问需配置 `HOST` 和 `QA_ACCESS_TOKEN`，并建议配合 HTTPS；访问口令不是用户账号或权限系统。
 
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests -v
+python -m pytest tests -q
+node tests/test_upload_selection.js
 ```
 
-当前自动化测试使用临时文件和模拟依赖，不消耗模型额度；覆盖检索策略路由、评估进度、资料删除、接口鉴权及模拟流式问答。测试接口依赖 `httpx`，已包含在 `requirements.txt`。额外运行 `node tests/test_upload_selection.js` 可检查上传控件状态。自动化测试不代替真实模型和 Milvus 链路测试。
-
-检索先选择策略，再用原问题从每路召回候选（`recall_candidates=20`）。若选择了子查询、HyDE 或回溯策略，还会执行相应增强检索，合并去重后按原问题重排，最终选取 `candidate_m` 个上下文。增强策略可能增加模型调用和等待时间。
-BGE-M3 同时传入包装器 `device` 和底层 FlagEmbedding 的 `devices`，确保设备设置在当前依赖版本实际生效。
-
-问答优先级：纯问候 → 标准 FAQ → 本地资料检索 → 确实未命中后的通用知识回答。BERT 的“通用知识”标签不会跳过本地检索；当前分类结果用于记录，不决定是否调用增强检索策略。这样新上传的任意主题课件都能参与回答，而不依赖写死的学科关键词。
+自动化测试中的模拟依赖不能替代真实模型与 Milvus 的端到端验证。

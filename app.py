@@ -30,9 +30,9 @@ from rag_qa.core.rag_pipeline import RetrievalError
 ROOT = Path(__file__).resolve().parent
 LOCAL_HOSTS = {'127.0.0.1', '::1', 'localhost'}
 GREETINGS = [
-    (r'(你好|您好|hi|hello)[!！。,.，？?\s]*', '你好！我是你的学科知识助手。你可以直接提问，也可以先导入学习资料。'),
+    (r'(你好|您好|hi|hello)[!！。,.，？?\s]*', '你好！我是企业知识库助手。你可以直接提问，也可以先导入企业资料。'),
     (r'(你是谁|您是谁|你叫什么|你的名字|who are you)[!！。,.，？?\s]*',
-     '我是学科知识助手，可以结合你的资料回答 Python、Java、AI、MySQL、Redis 相关问题。'),
+     '我是企业知识库助手，可以结合导入的制度、产品手册和业务资料回答问题。'),
     (r'(在吗|在不在|有人吗)[!！。,.，？?\s]*', '我在，请告诉我你想了解什么。'),
 ]
 
@@ -109,7 +109,7 @@ def create_app(qa_factory=None, importer_factory=None):
             if qa is not None and hasattr(qa, 'close'):
                 await run_in_threadpool(qa.close)
 
-    app = FastAPI(title='知序 · 学科知识助手', lifespan=lifespan)
+    app = FastAPI(title='企业知识库智能问答系统', lifespan=lifespan)
 
     def allowed(connection):
         if access_token:
@@ -161,7 +161,7 @@ def create_app(qa_factory=None, importer_factory=None):
         return value
 
     def validate_subject(qa, source):
-        if source and source not in qa.config.VALID_SOURCES: raise HTTPException(422, '请选择有效的学科')
+        if source and source not in qa.config.VALID_SOURCES: raise HTTPException(422, '请选择有效的资料分类')
 
     @app.get('/')
     async def index():
@@ -308,7 +308,7 @@ def create_app(qa_factory=None, importer_factory=None):
                 if len(raw) > 16000: raise ValueError('问题过长')
                 request = QueryRequest.model_validate(json.loads(raw))
             except (ValidationError, ValueError):
-                await websocket.send_json({'type': 'error', 'error': '请求无效，请检查问题内容和学科选择'})
+                await websocket.send_json({'type': 'error', 'error': '请求无效，请检查问题内容和资料分类'})
                 return
             try:
                 qa = service()

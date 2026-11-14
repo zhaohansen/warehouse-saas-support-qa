@@ -4,12 +4,14 @@ import torch.cuda
 import numpy as np
 from milvus_model.hybrid import BGEM3EmbeddingFunction
 from pymilvus import MilvusClient, DataType, AnnSearchRequest, WeightedRanker
+from pymilvus.exceptions import MilvusException
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
 import hashlib
 import json
 import threading
 from functools import wraps
+from pathlib import Path
 import sys, os
 
 local_path = os.path.abspath(os.path.dirname(__file__))
@@ -21,6 +23,17 @@ from base.config import Config
 from base.logger import logger
 
 conf = Config()
+
+# 检索命中后需要回填的字段；服务端混合检索与本地融合共用同一份清单。
+OUTPUT_FIELDS = ["text", "parent_id", "parent_content", "source", "timestamp", "filename", "file_path",
+                 "page", "slide"]
+# 客户端融合（RRF）的平滑常数，取自常用的 Reciprocal Rank Fusion 取值。
+RRF_K = 60
+
+
+def _is_local_uri(uri):
+    """http(s)/tcp 视为远程 Milvus；其余按 Milvus Lite 本地文件处理。"""
+    return not uri.startswith(("http://", "https://", "tcp://"))
 
 
 def _resolve_device(device_name):
@@ -85,14 +98,26 @@ class VectorStore:
             host=conf.MILVUS_HOST,
             port=conf.MILVUS_PORT,
             database=conf.MILVUS_DATABASE_NAME,
-            load_reranker=True
+            load_reranker=True,
+            uri=None,
     ):
         self._model_lock = threading.RLock()
         self.collection_name = collection_name
         self.host = host
         self.port = port
         self.database = database
+        self.uri = (uri or conf.MILVUS_URI or f"http://{host}:{port}").strip()
+        self.local_mode = _is_local_uri(self.uri)
+        self.hybrid_mode = "native"
         self.logger = logger
+        if self.local_mode:
+            # Milvus Lite 只接受本地文件路径，不支持 db_name 与远程参数。
+            path = Path(self.uri)
+            if not path.is_absolute():
+                path = Path(project_root) / path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.uri = str(path)
+            logger.info(f'使用 Milvus Lite 本地库: {self.uri}')
         self.device = _resolve_device(conf.EMBEDDING_DEVICE)
         self.reranker_device = _resolve_device(conf.RERANKER_DEVICE)
         self.logger.info(
@@ -107,7 +132,8 @@ class VectorStore:
             device=self.device, devices=[self.device])
 
         self.dense_dim = self.embedding_function.dim['dense']
-        self.client = MilvusClient(uri=f"http://{self.host}:{self.port}", db_name=self.database)
+        self.client = (MilvusClient(uri=self.uri) if self.local_mode
+                       else MilvusClient(uri=self.uri, db_name=self.database))
         try:
             self._create_or_load_collection()
         except Exception:
@@ -248,7 +274,7 @@ class VectorStore:
 
     @serialized_model
     def delete_file_vectors(self, source, file_path):
-        """按学科和文件路径删除该文件的向量记录。"""
+        """按资料分类和文件路径删除该文件的向量记录。"""
         expression = ('source == ' + json.dumps(source, ensure_ascii=False)
                       + ' and file_path == ' + json.dumps(file_path, ensure_ascii=False))
         self.client.delete(collection_name=self.collection_name, filter=expression)
@@ -257,57 +283,59 @@ class VectorStore:
     def hybrid_search_with_rerank(self, query, k=conf.RETRIEVAL_K, source_filter=None, rerank_query=None):
         """
         该函数用于执行: 混合检索(稠密 + 稀疏向量) + 结果重排序, 返回精准父文档
-        :param query: 用户查询文本, 例如: 'AI学科的课程内容是什么'
+        :param query: 用户查询文本, 例如: '新员工如何申请办公设备？'
         :param k: 混合检索返回的TopK子块数量
-        :param source_filter: 学科过滤条件, 例如: ai, 仅检索该学科的文档, 默认None不过滤.
+        :param source_filter: 资料分类过滤条件, 例如: onboarding, 仅检索该分类的文档, 默认None不过滤.
         :return: 重排序后的Top-M个父文档列表(M是从conf中获取的)
         """
         # 来源过滤统一校验，避免未经校验的字符串拼进 Milvus 表达式。
         if source_filter:
             source_filter = str(source_filter).strip()
             if source_filter not in conf.VALID_SOURCES:
-                raise ValueError("无效的学科过滤条件")
+                raise ValueError("无效的资料分类过滤条件")
 
         # 候选召回数量与最终上下文数量分别控制。
         # 多个命中的子块可能都来自同一张相关性较弱的幻灯片。
         recall_k = max(k, conf.RECALL_CANDIDATES)
-        query_embeddings = self.embedding_function([query])
-        dense_query_vector = _as_float32(query_embeddings["dense"][0])
-        sparse_query_vector = {}
-        row = query_embeddings["sparse"][[0]]
-        indices = row.indices
-        values = row.data
-        for idx, value in zip(indices, values):
-            sparse_query_vector[int(idx)] = float(value)
-
+        dense_query_vector, sparse_query_vector = self._query_vectors(query)
         filter_expr = f"source == '{source_filter}'" if source_filter else ""
-        dense_request = AnnSearchRequest(
-            data=[dense_query_vector],
-            anns_field='dense_vector',
-            param={'metric_type': 'IP', "params": {'nprobe': conf.NPROBE}},
-            limit=recall_k,
-            expr=filter_expr
-        )
-        sparse_request = AnnSearchRequest(
-            data=[sparse_query_vector],
-            anns_field='sparse_vector',
-            param={'metric_type': 'IP', "params": {}},
-            limit=recall_k,
-            expr=filter_expr
-        )
 
-        # 权重逻辑: 稠密向量侧重语义相似度, 稀疏向量侧重关键词匹配, 可根据业务调整.
-        # 权重从配置读取，避免修改检索策略时必须改源码。
-        ranker = WeightedRanker(conf.DENSE_WEIGHT, conf.SPARSE_WEIGHT)
-        results = self.client.hybrid_search(
-            collection_name=self.collection_name,
-            reqs=[dense_request, sparse_request],
-            ranker=ranker,
-            limit=recall_k,
-            output_fields=["text", "parent_id", "parent_content", "source", "timestamp", "filename", "file_path",
-                           "page", "slide"],
-            consistency_level='Strong'
-        )[0]
+        if self.hybrid_mode == 'native':
+            # 权重逻辑: 稠密向量侧重语义相似度, 稀疏向量侧重关键词匹配, 取值范围由配置控制.
+            ranker = WeightedRanker(conf.DENSE_WEIGHT, conf.SPARSE_WEIGHT)
+            dense_request = AnnSearchRequest(
+                data=[dense_query_vector],
+                anns_field='dense_vector',
+                param={'metric_type': 'IP', "params": {'nprobe': conf.NPROBE}},
+                limit=recall_k,
+                expr=filter_expr
+            )
+            sparse_request = AnnSearchRequest(
+                data=[sparse_query_vector],
+                anns_field='sparse_vector',
+                param={'metric_type': 'IP', "params": {}},
+                limit=recall_k,
+                expr=filter_expr
+            )
+            try:
+                results = self.client.hybrid_search(
+                    collection_name=self.collection_name,
+                    reqs=[dense_request, sparse_request],
+                    ranker=ranker,
+                    limit=recall_k,
+                    output_fields=OUTPUT_FIELDS,
+                    consistency_level='Strong'
+                )[0]
+            except MilvusException as exc:
+                # Milvus Lite 的混合检索能力取决于客户端与服务端版本；不可用时退回独立召回 + RRF 融合，
+                # 保证本地演示能跑通，同时不改变远程 Milvus 的原生混合检索路径。
+                if not self._hybrid_unsupported(exc):
+                    raise
+                logger.warning('当前向量库不支持原生混合检索（%s），改用稠密/稀疏独立召回与 RRF 融合', exc)
+                self.hybrid_mode = 'client_rrf'
+                results = self._client_side_hybrid(dense_query_vector, sparse_query_vector, recall_k, filter_expr)
+        else:
+            results = self._client_side_hybrid(dense_query_vector, sparse_query_vector, recall_k, filter_expr)
 
         sub_chunks = [self._doc_from_hit(hit["entity"]) for hit in results]
 
@@ -315,6 +343,45 @@ class VectorStore:
         parent_docs = self._get_unique_parent_docs(sub_chunks)
 
         return self.rerank_documents(rerank_query or query, parent_docs)
+
+    def _query_vectors(self, query):
+        """把查询编码成 float32 稠密向量与 Milvus 稀疏字典。"""
+        embeddings = self.embedding_function([query])
+        dense_vector = _as_float32(embeddings["dense"][0])
+        row = embeddings["sparse"][[0]]
+        sparse_vector = {int(index): float(value) for index, value in zip(row.indices, row.data)}
+        return dense_vector, sparse_vector
+
+    @staticmethod
+    def _hybrid_unsupported(exc):
+        message = str(exc).lower()
+        return any(marker in message for marker in ('function_score', 'not support', 'unsupported',
+                                                    'not implemented', 'unimplemented'))
+
+    def _client_side_hybrid(self, dense_vector, sparse_vector, limit, filter_expr):
+        """稠密/稀疏分别召回，用 Reciprocal Rank Fusion 合并；用于 Lite 等不支持原生混合检索的后端。"""
+        searches = (
+            ('dense_vector', [dense_vector], {'metric_type': 'IP', 'params': {'nprobe': conf.NPROBE}}),
+            ('sparse_vector', [sparse_vector], {'metric_type': 'IP', 'params': {}}),
+        )
+        fused = {}
+        for field, data, params in searches:
+            hits = self.client.search(
+                collection_name=self.collection_name, data=data, anns_field=field,
+                search_params=params, limit=limit, filter=filter_expr,
+                output_fields=OUTPUT_FIELDS, consistency_level='Strong')[0]
+            for rank, hit in enumerate(hits, 1):
+                key = hit.get('id')
+                if key is None:
+                    continue
+                entry = fused.setdefault(key, {'id': key, 'entity': hit.get('entity') or {}, 'score': 0.0})
+                entry['score'] += 1.0 / (RRF_K + rank)
+        return sorted(fused.values(), key=lambda item: item['score'], reverse=True)[:limit]
+
+    def describe_status(self):
+        """供健康检查展示后端类型，不包含主机、口令等敏感信息。"""
+        return {'backend': 'milvus-lite' if self.local_mode else 'milvus',
+                'collection': self.collection_name, 'hybrid_mode': self.hybrid_mode}
 
     @serialized_model
     def rerank_documents(self, query, documents):
@@ -363,7 +430,7 @@ class VectorStore:
 if __name__ == '__main__':
     from rag_qa.core.document_processor import process_documents
 
-    # 按配置中的学科依次读取资料，并写入当前 Milvus 集合。
+    # 按配置中的资料分类依次读取资料，并写入当前 Milvus 集合。
     vector_store = VectorStore(load_reranker=False)
     total = 0
     try:

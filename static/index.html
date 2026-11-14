@@ -3,1335 +3,1331 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>知序 · 学科知识助手</title>
-    <script>try {
-        document.documentElement.dataset.theme = localStorage.getItem('qa_theme') || 'light'
-    } catch (e) {
-    }</script>
+    <title>企业知识库问答工作台</title>
     <style>
         :root {
-            --bg: #f4f5f1;
-            --panel: #fbfbf8;
-            --side: #e8ebe4;
-            --ink: #172524;
-            --muted: #5d6a67;
-            --line: #d2d8d0;
-            --accent: #0e6b5b;
-            --on-accent: #fff;
-            --soft: #dfece6;
-            --mark: #f3de72;
-            --warn: #8a5a12;
-            --warnbg: #fbf0d9;
-            --green: #0e6b5b;
-            --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+            --bg: #f6f7f9;
+            --surface: #ffffff;
+            --sidebar: #fbfbfc;
+            --ink: #1f2937;
+            --ink-soft: #344054;
+            --muted: #667085;
+            --line: #e4e7ec;
+            --line-strong: #d0d5dd;
+            --accent: #2563eb;
+            --accent-dark: #1d4ed8;
+            --accent-soft: #eff4ff;
+            --success: #067647;
+            --success-soft: #ecfdf3;
+            --warn: #b54708;
+            --warn-soft: #fffaeb;
+            --danger: #b42318;
+            --danger-soft: #fef3f2;
             --sans: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
             --mono: Consolas, "SFMono-Regular", Menlo, monospace;
             color-scheme: light
         }
 
-        :root[data-theme=dark] {
-            --bg: #0f1a19;
-            --panel: #152322;
-            --side: #0b1413;
-            --ink: #e6eeea;
-            --muted: #93a6a1;
-            --line: #263836;
-            --accent: #6fd0b8;
-            --on-accent: #08201b;
-            --soft: #1e3532;
-            --mark: #cdb552;
-            --warn: #e4ba72;
-            --warnbg: #2e2719;
-            --green: #6fd0b8;
-            color-scheme: dark
-        }
+        * { box-sizing: border-box }
 
-        * {
-            box-sizing: border-box
-        }
+        html, body { height: 100% }
 
         body {
             margin: 0;
-            font: 15px/1.7 var(--sans);
             background: var(--bg);
-            color: var(--ink)
+            color: var(--ink);
+            font: 14px/1.6 var(--sans);
+            -webkit-font-smoothing: antialiased
         }
 
-        button, input, select, textarea {
-            font: inherit;
-            color: inherit
-        }
+        button, input, select, textarea { font: inherit; color: inherit }
 
-        button {
-            cursor: pointer;
-            border: 0;
-            background: none
-        }
+        button { border: 0; background: none; cursor: pointer }
 
-        button:disabled {
-            opacity: .5;
-            cursor: wait
-        }
+        button:disabled { cursor: not-allowed; opacity: .5 }
 
-        :focus-visible {
-            outline: 2px solid var(--accent);
-            outline-offset: 3px
-        }
+        h1, h2, h3, p { margin: 0 }
 
-        h1, h2, h3, p {
-            margin: 0
-        }
+        [hidden] { display: none !important }
 
-        [hidden] {
-            display: none !important
-        }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
-        .shell {
+        .app {
             height: 100dvh;
             display: grid;
-            grid-template-columns:264px minmax(0, 1fr)
+            grid-template-columns: 264px minmax(0, 1fr);
+            overflow: hidden
         }
 
-        /* 侧栏：像书的目录 */
+        /* ---------- 侧栏 ---------- */
         .sidebar {
-            background: var(--side);
-            border-right: 1px solid var(--line);
+            min-height: 0;
             display: flex;
             flex-direction: column;
-            padding: 26px 18px 16px;
-            min-height: 0;
-            z-index: 30
+            padding: 18px 14px 14px;
+            background: var(--sidebar);
+            border-right: 1px solid var(--line)
         }
 
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0 4px 26px
-        }
+        .brand { display: flex; align-items: center; gap: 10px; padding: 2px 4px 18px }
 
-        .brandmark {
-            width: 38px;
-            height: 38px;
-            border-radius: 4px;
-            background: var(--ink);
-            color: var(--bg);
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            flex: none;
             display: grid;
             place-items: center;
-            font: 600 22px var(--serif)
-        }
-
-        .brandname {
-            font: 700 21px var(--serif);
-            letter-spacing: .2em
-        }
-
-        .brand small {
-            display: block;
-            font-size: 10px;
-            letter-spacing: .14em;
-            color: var(--muted)
-        }
-
-        .btn {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            padding: 9px 15px;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            background: var(--panel);
-            white-space: nowrap;
-            transition: border-color .15s, background .15s
-        }
-
-        .btn:hover {
-            border-color: var(--accent)
-        }
-
-        .btn.primary {
+            border-radius: 9px;
             background: var(--accent);
-            color: var(--on-accent);
-            border-color: var(--accent);
-            font-weight: 600
+            color: #fff;
+            font-weight: 700;
+            font-size: 18px
         }
 
-        .newchat {
-            width: 100%;
-            justify-content: flex-start;
-            background: transparent;
-            border-color: var(--ink);
-            font-weight: 600
-        }
+        .brand-text { min-width: 0; line-height: 1.35 }
 
-        .newchat:hover {
-            background: var(--ink);
-            color: var(--bg);
-            border-color: var(--ink)
-        }
+        .brand-text strong { display: block; font-size: 15px; font-weight: 700; letter-spacing: .02em }
 
-        .newchat span {
-            margin-left: auto;
-            font-size: 0
-        }
+        .brand-text span { display: block; font-size: 11px; color: var(--muted) }
 
-        .newchat span::after {
-            content: "Ctrl K";
-            font: 11px var(--mono);
-            opacity: 0
-        }
+        .sidebar-close { display: none }
 
-        .search {
-            margin: 20px 0 14px
-        }
-
-        .search input {
-            width: 100%;
-            border: 0;
-            border-bottom: 1px solid var(--line);
-            background: transparent;
-            padding: 7px 2px;
-            font-size: 13px;
-            border-radius: 0
-        }
-
-        .search input:focus {
-            outline: none;
-            border-bottom-color: var(--accent)
-        }
-
-        .listhead {
+        .new-chat {
             display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            height: 40px;
+            border-radius: 8px;
+            background: var(--accent);
+            color: #fff;
+            font-weight: 600;
+            transition: background .15s
+        }
+
+        .new-chat:hover { background: var(--accent-dark) }
+
+        .session-search { margin: 16px 0 14px }
+
+        .session-search input {
+            width: 100%;
+            height: 36px;
+            padding: 0 11px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--surface);
+            font-size: 13px
+        }
+
+        .session-search input::placeholder { color: var(--muted) }
+
+        .section-head {
+            display: flex;
+            align-items: center;
             justify-content: space-between;
+            padding: 0 6px 8px;
             color: var(--muted);
             font-size: 12px;
-            padding: 0 4px 8px
+            font-weight: 600
         }
 
-        .sessions {
-            flex: 1;
-            overflow: auto;
-            min-height: 0
-        }
+        .session-list { flex: 1; min-height: 0; overflow: auto; padding-bottom: 8px }
 
         .session {
             display: flex;
             align-items: center;
-            gap: 4px;
-            margin: 1px 0;
-            border-left: 3px solid transparent
+            gap: 2px;
+            border-radius: 8px;
+            margin: 2px 0
         }
 
-        .session:hover {
-            background: color-mix(in srgb, var(--panel) 60%, transparent)
-        }
+        .session:hover { background: #f0f2f5 }
 
-        .session.active {
-            border-left-color: var(--accent);
-            background: var(--panel)
-        }
+        .session.active { background: var(--accent-soft) }
 
         .session-open {
-            min-width: 0;
             flex: 1;
+            min-width: 0;
+            padding: 9px 10px;
             text-align: left;
-            padding: 10px 9px;
-            font-size: 13px;
+            border-radius: 8px
+        }
+
+        .session-title {
+            display: block;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap
+            white-space: nowrap;
+            font-size: 13px;
+            color: var(--ink-soft)
         }
 
-        .session.active .session-open {
-            font-weight: 600
-        }
+        .session.active .session-title { color: var(--accent-dark); font-weight: 600 }
+
+        .session-meta { display: block; margin-top: 1px; color: var(--muted); font-size: 11px }
 
         .session-delete {
-            padding: 8px 10px;
+            flex: none;
+            width: 30px;
+            height: 30px;
+            margin-right: 3px;
+            border-radius: 6px;
             color: var(--muted);
             opacity: 0
         }
 
-        .session:hover .session-delete, .session:focus-within .session-delete {
-            opacity: 1
-        }
+        .session:hover .session-delete,
+        .session:focus-within .session-delete { opacity: 1 }
+
+        .session-delete:hover { background: var(--danger-soft); color: var(--danger) }
 
         .empty {
-            padding: 24px 12px;
+            padding: 18px 10px;
             color: var(--muted);
             font-size: 13px;
+            line-height: 1.7;
             text-align: center;
             white-space: pre-wrap
         }
 
-        .sidefoot {
-            border-top: 1px solid var(--line);
-            padding-top: 14px;
-            margin-top: 12px
-        }
+        .sidebar-foot { border-top: 1px solid var(--line); padding-top: 10px }
 
-        .library-btn {
+        .library-entry {
             display: flex;
-            gap: 10px;
             align-items: center;
+            gap: 9px;
             width: 100%;
-            padding: 10px 6px;
-            text-align: left;
+            padding: 9px 8px;
+            border-radius: 8px;
             font-size: 13px;
-            border-radius: 6px
-        }
-
-        .library-btn:hover {
-            background: var(--panel)
-        }
-
-        .count {
-            margin-left: auto;
-            background: var(--mark);
-            color: #2a2400;
-            padding: 0 8px;
-            border-radius: 3px;
-            font: 600 11px var(--mono)
-        }
-
-        .account {
-            padding: 14px 6px 0;
-            color: var(--muted);
-            font-size: 12px;
-            line-height: 1.8
-        }
-
-        /* 工作区 */
-        .workspace {
-            min-width: 0;
-            min-height: 0;
-            display: flex;
-            flex-direction: column
-        }
-
-        .topbar {
-            height: 60px;
-            padding: 0 36px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            border-bottom: 1px solid var(--line);
-            flex: none
-        }
-
-        .breadcrumb {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 13px;
-            color: var(--muted)
-        }
-
-        .breadcrumb strong {
             font-weight: 600;
-            color: var(--ink)
+            text-align: left
         }
 
-        .toolbar {
-            display: flex;
-            align-items: center;
-            gap: 10px
-        }
+        .library-entry:hover { background: #f0f2f5 }
 
-        .toolbar .btn {
-            background: transparent;
-            font-size: 13px
-        }
+        .library-icon { color: var(--muted); font-size: 15px }
 
-        .health {
-            color: var(--muted);
-            font-size: 12px;
-            margin-right: 8px
-        }
-
-        .health.ready {
-            color: var(--green)
-        }
-
-        .iconbtn {
+        .badge {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 34px;
-            height: 34px;
-            border-radius: 6px;
-            color: var(--muted);
-            font-size: 13px
+            min-width: 20px;
+            height: 20px;
+            margin-left: auto;
+            padding: 0 6px;
+            border-radius: 10px;
+            background: var(--accent-soft);
+            color: var(--accent-dark);
+            font-size: 11px;
+            font-weight: 600
         }
 
-        .iconbtn:hover {
-            background: var(--soft);
-            color: var(--accent)
-        }
+        /* ---------- 主区域 ---------- */
+        .main { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg) }
 
-        .mobile-menu {
-            display: none
-        }
-
-        .chat-head {
-            max-width: 792px;
-            width: 100%;
-            margin: 0 auto;
-            padding: 14px 32px 0;
+        .topbar {
+            flex: none;
+            height: 64px;
             display: flex;
             align-items: center;
-            justify-content: space-between
-        }
-
-        .subject-select {
-            font-size: 12px;
-            color: var(--muted)
-        }
-
-        select {
-            border: 0;
-            background: transparent;
-            padding: 6px 2px;
-            color: var(--ink);
-            font-weight: 600
-        }
-
-        .chat-actions {
-            display: flex;
-            gap: 4px
-        }
-
-        .chat-log {
-            flex: 1;
-            min-height: 0;
-            overflow: auto;
-            scroll-behavior: smooth
-        }
-
-        .content-width {
-            max-width: 792px;
-            margin: 0 auto;
-            padding: 0 32px
-        }
-
-        /* 欢迎页：左对齐，大号宋体标题 */
-        .welcome {
-            padding: clamp(36px, 10vh, 104px) 0 28px
-        }
-
-        .welcome .eyebrow {
-            display: none
-        }
-
-        .welcome h1 {
-            font: 600 clamp(34px, 4.6vw, 56px)/1.22 var(--serif);
-            letter-spacing: -.01em;
-            max-width: 11em
-        }
-
-        .intro {
-            color: var(--muted);
-            font-size: 15px;
-            margin-top: 18px;
-            max-width: 30em;
-            line-height: 1.9
-        }
-
-        .subject-pills {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 28px
-        }
-
-        .pill {
-            border: 1px solid var(--line);
-            border-radius: 3px;
-            padding: 3px 11px;
-            font-size: 13px;
-            color: var(--muted);
-            background: transparent;
-            transition: background .15s
-        }
-
-        .pill:hover {
-            border-color: var(--ink);
-            color: var(--ink)
-        }
-
-        .pill.active {
-            background: var(--mark);
-            border-color: var(--mark);
-            color: #2a2400;
-            font-weight: 600
-        }
-
-        .suggestion-label {
-            color: var(--muted);
-            font-size: 13px;
-            margin: 44px 0 8px
-        }
-
-        .suggestions {
-            display: block;
-            border-top: 1px solid var(--ink)
-        }
-
-        .suggestion {
-            display: flex;
-            align-items: baseline;
+            justify-content: space-between;
             gap: 16px;
-            width: 100%;
-            text-align: left;
-            padding: 15px 6px;
-            border-bottom: 1px solid var(--line);
-            transition: background .15s
+            padding: 0 28px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line)
         }
 
-        .suggestion:hover {
-            background: var(--soft)
+        .topbar-title { display: flex; align-items: center; gap: 10px; min-width: 0 }
+
+        .topbar-title h1 { font-size: 16px; font-weight: 700; letter-spacing: .01em }
+
+        .topbar-title p { margin-top: 1px; color: var(--muted); font-size: 12px }
+
+        .topbar-actions { display: flex; align-items: center; gap: 8px; flex: none }
+
+        .status { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--muted); font-size: 12px }
+
+        .status i { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong) }
+
+        .status[data-state=ready] { color: var(--success) }
+        .status[data-state=ready] i { background: var(--success) }
+        .status[data-state=partial] { color: var(--warn) }
+        .status[data-state=partial] i { background: var(--warn) }
+        .status[data-state=down] { color: var(--danger) }
+        .status[data-state=down] i { background: var(--danger) }
+
+        .ghost-btn, .primary-btn, .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap
         }
 
-        .suggestion-icon {
+        .ghost-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft) }
+
+        .ghost-btn:hover { border-color: var(--line-strong); background: #f9fafb }
+
+        .primary-btn { background: var(--accent); color: #fff }
+
+        .primary-btn:hover { background: var(--accent-dark) }
+
+        .icon-btn { width: 34px; padding: 0; color: var(--muted); font-size: 15px }
+
+        .icon-btn:hover { background: #f0f2f5; color: var(--ink) }
+
+        .mobile-menu { display: none }
+
+        .scope-bar {
             flex: none;
-            width: 34px;
-            font: 600 12px var(--mono);
-            color: var(--accent)
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+            padding: 10px 28px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line)
         }
 
-        .suggestion p {
-            font: 500 16px/1.6 var(--serif)
+        .scope-label { flex: none; color: var(--muted); font-size: 12px; font-weight: 600 }
+
+        .scope-tabs {
+            display: flex;
+            flex: 1 1 auto;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-width: none
         }
 
-        .suggestion small {
-            display: block;
-            font-size: 12px;
+        .scope-tabs::-webkit-scrollbar { display: none }
+
+        .scope-tab {
+            flex: none;
+            height: 30px;
+            padding: 0 11px;
+            border-radius: 6px;
             color: var(--muted);
-            margin-top: 2px
+            font-size: 13px;
+            white-space: nowrap;
+            transition: background .15s, color .15s
         }
 
-        .welcome-note {
-            margin-top: 18px;
+        .scope-tab:hover { background: #f2f4f7; color: var(--ink) }
+
+        .scope-tab[aria-pressed=true] {
+            background: var(--accent-soft);
+            color: var(--accent-dark);
+            font-weight: 600;
+            box-shadow: inset 0 0 0 1px #c7d7fe
+        }
+
+        .scope-note { margin-left: auto; flex: none; color: var(--muted); font-size: 12px }
+
+        .chat-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain }
+
+        .chat-inner { max-width: 820px; margin: 0 auto; padding: 0 28px }
+
+        /* ---------- 欢迎页 ---------- */
+        .welcome { padding: clamp(40px, 8vh, 76px) 0 30px }
+
+        .intro { margin-top: 10px; max-width: 36em; color: var(--muted); font-size: 14px; line-height: 1.85 }
+
+        .quick { margin-top: 32px }
+
+        .quick-head {
+            margin-bottom: 10px;
+            color: var(--muted);
             font-size: 12px;
-            color: var(--muted)
+            font-weight: 600;
+            letter-spacing: .04em
         }
 
-        /* 对话：回答带一条边线，像批注 */
-        .messages {
-            padding: 28px 0;
+        .quick-list { display: grid; gap: 8px }
+
+        .quick-item {
             display: flex;
-            flex-direction: column;
-            gap: 32px
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: var(--surface);
+            text-align: left;
+            transition: border-color .15s, background .15s
         }
 
-        .message {
-            display: flex;
-            gap: 0;
-            align-items: flex-start
+        .quick-item:hover { border-color: #b9c8f5; background: #fbfcff }
+
+        .quick-tag {
+            flex: none;
+            min-width: 54px;
+            padding: 2px 7px;
+            border-radius: 5px;
+            background: #f2f4f7;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center
         }
 
-        .avatar {
-            display: none
-        }
+        .quick-item p { min-width: 0; font-size: 14px; color: var(--ink-soft) }
 
-        .message.user {
-            justify-content: flex-end
-        }
+        .quick-item::after { content: "→"; margin-left: auto; color: var(--muted); font-size: 13px }
+
+        .welcome-note { margin-top: 18px; color: var(--muted); font-size: 12px }
+
+        /* ---------- 消息 ---------- */
+        .messages { padding: 28px 0 20px }
+
+        .message + .message { margin-top: 28px }
+
+        .message.user { display: flex; justify-content: flex-end }
 
         .message.user .message-body {
-            background: color-mix(in srgb, var(--mark) 30%, var(--panel));
-            border-radius: 6px 6px 0 6px;
-            padding: 10px 16px;
             max-width: 82%;
-            flex: none
-        }
-
-        .message:not(.user) .message-body {
-            border-left: 3px solid var(--accent);
-            padding-left: 20px
-        }
-
-        .message-body {
-            min-width: 0;
-            flex: 1
-        }
-
-        .message-label {
-            font: 600 12px var(--sans);
-            color: var(--accent);
-            margin: 0 0 8px
-        }
-
-        .prose {
-            font-size: 15px;
-            line-height: 1.95;
+            padding: 10px 14px;
+            border-radius: 12px 12px 4px 12px;
+            background: var(--accent-soft);
+            color: var(--ink);
+            white-space: pre-wrap;
             overflow-wrap: anywhere
         }
 
-        .prose .plain {
-            white-space: pre-wrap
+        .assistant-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 7px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600
         }
 
-        .prose code {
-            background: var(--soft);
+        .assistant-label::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent)
+        }
+
+        .prose { font-size: 15px; line-height: 1.85; overflow-wrap: anywhere }
+
+        .prose.is-streaming { white-space: pre-wrap }
+
+        .prose.is-streaming::after {
+            content: "▍";
+            margin-left: 2px;
             color: var(--accent);
-            border-radius: 3px;
-            padding: 1px 6px;
-            font: 13px/1.6 var(--mono)
+            animation: blink 1s steps(2, start) infinite
+        }
+
+        @keyframes blink { to { visibility: hidden } }
+
+        .prose p + p { margin-top: 10px }
+
+        .prose h3, .prose h4 { margin: 16px 0 6px; line-height: 1.5 }
+
+        .prose h3 { font-size: 16px }
+        .prose h4 { font-size: 15px }
+
+        .prose ul, .prose ol { margin: 8px 0; padding-left: 1.45em }
+
+        .prose li + li { margin-top: 4px }
+
+        .prose blockquote {
+            margin: 12px 0;
+            padding: 2px 0 2px 12px;
+            border-left: 3px solid var(--line-strong);
+            color: var(--muted)
+        }
+
+        .prose hr { margin: 18px 0; border: 0; border-top: 1px solid var(--line) }
+
+        .prose code {
+            padding: 1px 5px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: #f8fafc;
+            color: var(--ink-soft);
+            font: 12.5px/1.6 var(--mono)
         }
 
         .codeblock {
-            margin: 14px 0;
-            border-radius: 6px;
+            margin: 12px 0;
             overflow: hidden;
-            background: #101d1c;
-            border: 1px solid #1d3331
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fbfcfd
         }
 
         .codebar {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            background: #16282a;
-            padding: 6px 14px;
-            color: #9db3ae;
-            font: 12px var(--mono)
+            justify-content: space-between;
+            padding: 5px 10px;
+            border-bottom: 1px solid var(--line);
+            background: #f2f4f7;
+            color: var(--muted);
+            font: 11px var(--mono)
         }
 
-        .codebar button {
+        .codebar button { color: var(--muted); font-size: 11px; padding: 2px 5px; border-radius: 4px }
+
+        .codebar button:hover { color: var(--accent); background: var(--surface) }
+
+        .codeblock pre { margin: 0; padding: 12px 14px; overflow-x: auto }
+
+        .codeblock pre code { padding: 0; border: 0; background: transparent; font: 12.5px/1.7 var(--mono); white-space: pre }
+
+        .table-wrap { margin: 12px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px }
+
+        .prose table { width: 100%; border-collapse: collapse; font-size: 13px }
+
+        .prose th, .prose td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top }
+
+        .prose th { background: #f8fafc; font-weight: 600; white-space: nowrap }
+
+        .prose tr:last-child td { border-bottom: 0 }
+
+        .citation {
+            display: inline;
+            padding: 0 2px;
+            border-radius: 3px;
+            color: var(--accent);
             font-size: 12px;
-            padding: 3px 6px;
-            color: #9db3ae
+            font-weight: 600;
+            vertical-align: super;
+            line-height: 1
         }
 
-        .codebar button:hover {
-            color: #fff
+        .citation:hover { background: var(--accent-soft) }
+
+        .thinking { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px }
+
+        .thinking i {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse 1.1s ease-in-out infinite
         }
 
-        .codeblock pre {
-            margin: 0;
-            padding: 14px 16px;
-            overflow: auto;
-            white-space: pre;
-            font: 13px/1.8 var(--mono)
+        @keyframes pulse { 50% { opacity: .25 } }
+
+        .answer-error {
+            margin-top: 10px;
+            padding: 9px 11px;
+            border: 1px solid #fecdca;
+            border-radius: 7px;
+            background: var(--danger-soft);
+            color: var(--danger);
+            font-size: 13px
         }
 
-        .codeblock pre code {
-            background: transparent;
-            color: #e3efeb;
-            padding: 0
+        .answer-notice {
+            margin-top: 10px;
+            padding: 8px 11px;
+            border: 1px solid #fedf89;
+            border-radius: 7px;
+            background: var(--warn-soft);
+            color: var(--warn);
+            font-size: 12.5px
         }
 
         .answer-foot {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            margin-top: 10px;
             color: var(--muted);
-            font-size: 12px;
-            margin-top: 12px
-        }
-
-        .answer-foot .iconbtn {
-            min-width: 0;
-            height: 26px;
-            padding: 0 8px;
             font-size: 12px
         }
 
-        .references {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-top: 14px
+        .answer-foot button {
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: var(--muted);
+            font-size: 12px
         }
 
-        .reference {
-            background: color-mix(in srgb, var(--mark) 32%, transparent);
-            border-radius: 3px;
-            padding: 2px 8px;
+        .answer-foot button:hover { background: #f2f4f7; color: var(--ink) }
+
+        /* ---------- 来源 ---------- */
+        .sources { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line) }
+
+        .sources-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+            color: var(--muted);
             font-size: 12px;
-            color: var(--ink);
-            max-width: 100%;
+            font-weight: 600
+        }
+
+        .source-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none }
+
+        .source {
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            padding: 7px 8px;
+            border: 1px solid transparent;
+            border-radius: 7px;
+            transition: background .2s, border-color .2s
+        }
+
+        .source:hover { background: #f9fafb }
+
+        .source.flash { background: var(--accent-soft); border-color: #c7d7fe }
+
+        .source-index {
+            flex: none;
+            display: grid;
+            place-items: center;
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
+            border-radius: 5px;
+            background: #f2f4f7;
+            color: var(--muted);
+            font: 600 11px var(--mono)
+        }
+
+        .source-main { min-width: 0; flex: 1 }
+
+        .source-title {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ink-soft);
             overflow-wrap: anywhere
         }
 
-        .thinking {
-            color: var(--muted);
-            font-size: 13px
-        }
+        .source-meta { margin-top: 1px; color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere }
 
-        .answer-error {
-            color: var(--warn);
-            font-size: 13px;
-            padding: 8px 0
-        }
-
-        /* 输入区 */
-        .composer {
-            padding: 12px 32px 20px;
+        .tag {
             flex: none;
-            background: var(--bg)
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: #f2f4f7;
+            color: var(--muted);
+            font-size: 10.5px;
+            font-weight: 600;
+            line-height: 1.6
         }
 
-        .composer-wrap {
-            max-width: 728px;
-            margin: auto
+        .tag.faq { background: var(--accent-soft); color: var(--accent-dark) }
+        .tag.demo { background: var(--warn-soft); color: var(--warn) }
+
+        .source-empty { margin-top: 10px; color: var(--muted); font-size: 12px }
+
+        /* ---------- 输入区 ---------- */
+        .composer {
+            flex: none;
+            padding: 12px 28px max(14px, env(safe-area-inset-bottom));
+            background: var(--surface);
+            border-top: 1px solid var(--line)
+        }
+
+        .composer-inner { max-width: 820px; margin: 0 auto }
+
+        .kb-banner {
+            margin-bottom: 9px;
+            padding: 8px 11px;
+            border: 1px solid #fedf89;
+            border-radius: 7px;
+            background: var(--warn-soft);
+            color: var(--warn);
+            font-size: 12px
         }
 
         .inputbox {
-            background: var(--panel);
-            border: 1px solid var(--ink);
-            border-radius: 8px;
-            padding: 14px 14px 10px 18px
+            padding: 11px 12px 9px 14px;
+            border: 1px solid var(--line-strong);
+            border-radius: 11px;
+            background: var(--surface);
+            transition: border-color .15s, box-shadow .15s
         }
 
         .inputbox:focus-within {
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)
+            box-shadow: 0 0 0 3px #2563eb1a
         }
 
         .inputbox textarea {
+            display: block;
             width: 100%;
+            min-height: 44px;
+            max-height: 180px;
+            padding: 0;
             border: 0;
             outline: none !important;
             resize: none;
             background: transparent;
             font-size: 15px;
-            min-height: 46px;
-            max-height: 180px;
-            padding: 0;
-            line-height: 1.8
+            line-height: 1.7
         }
 
-        .inputbox textarea::placeholder {
-            color: var(--muted)
-        }
+        .inputbox textarea::placeholder { color: #98a2b3 }
 
-        .input-tools {
+        .composer-tools {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px
+            gap: 12px;
+            margin-top: 6px
         }
 
-        .input-hint {
-            color: var(--muted);
-            font-size: 12px;
-            padding: 5px 0
-        }
+        .input-hint { color: var(--muted); font-size: 11.5px }
 
-        .input-hint:hover {
-            color: var(--accent)
-        }
-
-        .send {
-            background: var(--accent);
-            color: var(--on-accent);
-            border-radius: 6px;
+        .send-btn {
+            height: 34px;
             min-width: 72px;
-            height: 36px;
-            padding: 0 14px;
+            padding: 0 15px;
+            border-radius: 7px;
+            background: var(--accent);
+            color: #fff;
             font-size: 13px;
             font-weight: 600
         }
 
-        .send:hover {
-            filter: brightness(1.08)
-        }
+        .send-btn:hover:not(:disabled) { background: var(--accent-dark) }
 
-        .send.generating {
-            background: var(--soft);
-            color: var(--accent)
-        }
+        .send-btn.stop { background: var(--danger-soft); color: var(--danger); box-shadow: inset 0 0 0 1px #fecdca }
 
-        .disclaimer {
-            text-align: center;
-            font-size: 11px;
-            color: var(--muted);
-            margin-top: 10px
-        }
+        .send-btn.stop:hover { background: #fee4e2 }
 
-        /* 弹窗 */
+        .disclaimer { margin-top: 7px; text-align: center; color: var(--muted); font-size: 11px }
+
+        /* ---------- 弹窗 ---------- */
         .dialog {
-            border: 1px solid var(--ink);
-            background: var(--panel);
+            width: min(640px, calc(100vw - 32px));
+            max-height: 86dvh;
+            padding: 0;
+            border: 0;
+            border-radius: 11px;
+            background: var(--surface);
             color: var(--ink);
-            border-radius: 8px;
-            padding: 28px;
-            width: min(620px, calc(100vw - 28px));
-            max-height: 85dvh
+            box-shadow: 0 24px 64px #10182833
         }
 
-        .dialog::backdrop {
-            background: #0a1514aa
-        }
+        .dialog::backdrop { background: #10182873 }
 
         .dialog-head {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 15px;
-            margin-bottom: 6px
+            gap: 14px;
+            padding: 18px 22px;
+            border-bottom: 1px solid var(--line)
         }
 
-        .dialog h2 {
-            font: 600 22px var(--serif)
-        }
+        .dialog-head h2 { font-size: 17px; font-weight: 700 }
 
-        .dialog-intro {
+        .dialog-body { padding: 18px 22px 22px; overflow: auto; max-height: calc(86dvh - 65px) }
+
+        .dialog-intro { margin-bottom: 16px; color: var(--muted); font-size: 12.5px; line-height: 1.7 }
+
+        .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--line); margin-bottom: 18px }
+
+        .tab {
+            padding: 9px 0;
+            margin-bottom: -1px;
+            border-bottom: 2px solid transparent;
             color: var(--muted);
             font-size: 13px;
-            margin: 8px 0 20px
-        }
-
-        .field-label {
-            display: block;
-            font-size: 13px;
-            margin: 18px 0 7px;
             font-weight: 600
         }
 
+        .tab:hover { color: var(--ink) }
+
+        .tab.active { border-color: var(--accent); color: var(--accent-dark) }
+
+        .field-label { display: block; margin-bottom: 6px; font-size: 12.5px; font-weight: 600 }
+
         .field {
             width: 100%;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            padding: 10px;
-            background: var(--bg);
-            font-weight: 400
+            height: 38px;
+            padding: 0 10px;
+            border: 1px solid var(--line-strong);
+            border-radius: 7px;
+            background: var(--surface);
+            font-size: 13px
         }
 
+        .field-note { margin-top: 6px; color: var(--muted); font-size: 11.5px }
+
         .droparea {
-            border: 1.5px dashed var(--muted);
-            border-radius: 6px;
-            background: var(--bg);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 5px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 26px 14px;
+            border: 1.5px dashed var(--line-strong);
+            border-radius: 9px;
+            background: #fbfcfd;
             text-align: center;
-            padding: 34px 15px;
-            cursor: pointer;
-            margin-top: 17px;
-            gap: 7px;
-            width: 100%
+            transition: border-color .15s, background .15s
         }
 
-        .droparea.over {
-            border-color: var(--accent);
-            background: var(--soft)
-        }
+        .droparea:hover, .droparea.over { border-color: var(--accent); background: var(--accent-soft) }
 
-        .droparea strong {
-            font-size: 14px;
-            font-weight: 600;
-            overflow-wrap: anywhere;
-            max-width: 100%
-        }
+        .droparea strong { max-width: 100%; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere }
 
-        .droparea small {
-            font-size: 12px;
-            color: var(--muted)
-        }
+        .droparea small { color: var(--muted); font-size: 11.5px }
 
-        .dialog-foot {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 22px
-        }
-
-        .statusbox {
-            font-size: 13px;
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-            background: var(--soft);
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 15px
-        }
-
-        .statusbox.warning {
-            background: var(--warnbg);
-            color: var(--warn)
-        }
-
-        .doc-list {
-            max-height: 330px;
-            overflow: auto;
-            margin-top: 20px
-        }
-
-        .doc-row {
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-            padding: 13px 0;
-            border-bottom: 1px solid var(--line)
-        }
-
-        .doc-delete {
-            flex: none;
-            padding: 5px 10px;
-            border: 1px solid var(--line);
-            border-radius: 8px;
+        .upload-summary {
+            margin-top: 10px;
+            padding: 9px 11px;
+            border-radius: 7px;
+            background: #f8fafc;
             color: var(--muted);
             font-size: 12px
         }
-        .doc-delete:hover { color: #b43d4b; border-color: #dca9ae; background: var(--panel) }
+
+        .statusbox {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 7px;
+            background: var(--accent-soft);
+            color: var(--accent-dark);
+            font-size: 12.5px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere
+        }
+
+        .statusbox.warning { background: var(--warn-soft); color: var(--warn) }
+
+        .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px }
+
+        .doc-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px
+        }
+
+        .doc-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px }
+
+        .doc-toolbar select { height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 0 8px }
+
+        .doc-total { color: var(--muted); font-size: 12px }
+
+        .doc-list { max-height: 380px; overflow: auto }
+
+        .doc-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 2px;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .doc-row:last-child { border-bottom: 0 }
 
         .doc-icon {
-            background: var(--ink);
-            color: var(--bg);
-            border-radius: 3px;
-            padding: 3px 7px;
-            font: 600 10px var(--mono);
-            flex: none
+            flex: none;
+            min-width: 40px;
+            padding: 3px 5px;
+            border-radius: 4px;
+            background: #f2f4f7;
+            color: var(--muted);
+            font: 600 9.5px var(--mono);
+            text-align: center
         }
 
-        .doc-main {
-            min-width: 0;
-            flex: 1
-        }
+        .doc-main { min-width: 0; flex: 1 }
 
         .doc-name {
-            font-size: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
             font-weight: 600;
             overflow-wrap: anywhere
         }
 
-        .doc-meta {
-            font-size: 12px;
+        .doc-meta { margin-top: 2px; color: var(--muted); font-size: 11.5px }
+
+        .doc-warning { margin-top: 3px; color: var(--warn); font-size: 11.5px }
+
+        .doc-delete {
+            flex: none;
+            height: 28px;
+            padding: 0 9px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
             color: var(--muted);
-            margin-top: 3px
+            font-size: 12px
         }
 
-        .doc-warning {
-            font-size: 12px;
-            color: var(--warn);
-            margin-top: 5px
-        }
+        .doc-delete:hover { border-color: #fecdca; background: var(--danger-soft); color: var(--danger) }
 
-        .tabs {
-            display: flex;
-            gap: 20px;
-            border-bottom: 1px solid var(--line);
-            margin-top: 15px
-        }
+        .confirm-dialog { width: min(430px, calc(100vw - 32px)) }
 
-        .tab {
-            padding: 9px 1px;
+        .confirm-dialog .dialog-body p { color: var(--muted); font-size: 13px; line-height: 1.75; overflow-wrap: anywhere }
+
+        .danger-btn {
+            height: 34px;
+            padding: 0 14px;
+            border-radius: 7px;
+            background: var(--danger);
+            color: #fff;
             font-size: 13px;
-            color: var(--muted);
-            border-bottom: 2px solid transparent;
-            margin-bottom: -1px
-        }
-
-        .tab.active {
-            border-color: var(--accent);
-            color: var(--ink);
             font-weight: 600
         }
 
+        .danger-btn:hover { background: #912018 }
+
         .toast {
             position: fixed;
-            bottom: 24px;
             left: 50%;
-            transform: translateX(-50%);
-            max-width: calc(100% - 30px);
-            padding: 10px 18px;
-            border-radius: 6px;
-            background: var(--ink);
-            color: var(--bg);
-            font-size: 13px;
+            bottom: 26px;
             z-index: 100;
+            max-width: calc(100vw - 32px);
+            padding: 9px 15px;
+            border-radius: 7px;
+            background: #101828;
+            color: #fff;
+            font-size: 12.5px;
+            transform: translateX(-50%);
             overflow-wrap: anywhere
         }
 
-        .mask {
-            display: none
-        }
+        .mask { display: none }
 
-        @media (max-width: 1000px) {
-            .shell {
-                grid-template-columns:232px minmax(0, 1fr)
-            }
-
-            .topbar {
-                padding: 0 24px
-            }
-
-            .health {
-                display: none
-            }
+        @media (max-width: 960px) {
+            .app { grid-template-columns: 232px minmax(0, 1fr) }
+            .topbar, .scope-bar { padding-left: 20px; padding-right: 20px }
+            .composer { padding-left: 20px; padding-right: 20px }
+            .chat-inner { padding: 0 20px }
+            .scope-note { display: none }
         }
 
         @media (max-width: 720px) {
-            .shell {
-                display: block
-            }
+            .app { display: block }
 
             .sidebar {
                 position: fixed;
                 inset: 0 auto 0 0;
+                z-index: 40;
                 width: 280px;
                 transform: translateX(-100%);
                 transition: transform .2s
             }
 
-            .sidebar.open {
-                transform: translateX(0)
-            }
+            .sidebar.open { transform: translateX(0) }
+
+            .sidebar-close { display: inline-flex; margin-left: auto }
 
             .mask.open {
                 display: block;
                 position: fixed;
                 inset: 0;
-                background: #0a151488;
-                z-index: 25
+                z-index: 35;
+                background: #10182873
             }
 
-            .workspace {
-                height: 100dvh
-            }
+            .main { height: 100dvh }
 
-            .mobile-menu {
-                display: inline-flex
-            }
+            .mobile-menu { display: inline-flex }
 
-            .topbar {
-                height: 56px;
-                padding: 0 12px
-            }
+            .topbar { height: 58px; padding: 0 12px }
 
-            .breadcrumb {
-                gap: 8px
-            }
+            .topbar-title { gap: 6px }
 
-            .breadcrumb .workspace-label, .breadcrumb .slash {
-                display: none
-            }
+            .topbar-title h1 { font-size: 15px }
 
-            .toolbar {
-                gap: 4px
-            }
+            .topbar-title p { display: none }
 
-            .toolbar .btn {
-                padding: 6px 10px;
-                font-size: 12px
-            }
+            .status span { display: none }
 
-            .chat-head {
-                padding: 10px 18px 0
-            }
+            .status { margin-right: 0 }
 
-            .content-width {
-                padding: 0 20px
-            }
+            .ghost-btn { padding: 0 9px; font-size: 12px }
 
-            .welcome {
-                padding-top: 32px
-            }
+            .primary-btn { padding: 0 11px; font-size: 12px }
 
-            .welcome h1 {
-                font-size: 34px
-            }
+            .scope-bar { padding: 8px 12px; gap: 8px }
 
-            .intro {
-                font-size: 14px
-            }
+            .scope-label { display: none }
 
-            .suggestion {
-                gap: 10px;
-                padding: 13px 2px
-            }
+            .scope-tab { padding: 0 8px; font-size: 12.5px }
 
-            .suggestion-icon {
-                width: 28px
-            }
+            .chat-inner { padding: 0 16px }
 
-            .suggestion p {
-                font-size: 15px
-            }
+            .welcome { padding-top: 34px }
 
-            .composer {
-                padding: 10px 14px max(12px, env(safe-area-inset-bottom))
-            }
+            .quick-item { padding: 11px 12px; gap: 9px }
 
-            .message.user .message-body {
-                max-width: 90%
-            }
+            .quick-tag { min-width: 48px }
 
-            .message:not(.user) .message-body {
-                padding-left: 14px
-            }
+            .quick-item p { font-size: 13px }
 
-            .dialog {
-                padding: 20px
-            }
+            .message.user .message-body { max-width: 90% }
 
-            .session-delete {
-                opacity: 1
-            }
+            .prose { font-size: 14.5px }
 
-            .inputbox textarea {
-                font-size: 16px
-            }
+            .composer { padding: 9px 12px max(10px, env(safe-area-inset-bottom)) }
 
-            .enter-hint {
-                display: none
-            }
+            .input-hint { display: none }
+
+            .inputbox textarea { font-size: 16px }
+
+            .dialog { width: calc(100vw - 20px) }
+
+            .dialog-head, .dialog-body { padding-left: 16px; padding-right: 16px }
+
+            .session-delete { opacity: 1 }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            * {
-                scroll-behavior: auto !important;
-                transition: none !important
-            }
+            *, *::before, *::after { animation: none !important; transition: none !important }
+            .chat-log { scroll-behavior: auto }
         }
-/* 代码示例：根据页面主题调整背景与文字颜色 */
-:root:not([data-theme=dark]) .codeblock { background: #f7f8fc; border-color: #e4e8f1; border-radius: 12px; }
-:root:not([data-theme=dark]) .codebar { background: #eef1f8; color: #66748c; border-bottom: 1px solid #e4e8f1; }
-:root:not([data-theme=dark]) .codebar button { color: #66748c; }
-:root:not([data-theme=dark]) .codebar button:hover { color: #4058cb; }
-:root:not([data-theme=dark]) .codeblock pre code { color: #28364e; }
-/* 知序学习工作台 */
+/* Workspace theme */
 :root {
-    --bg: #ffffff; --panel: #ffffff; --side: #f7f8fb; --ink: #182238;
-    --muted: #748096; --line: #e7ebf2; --accent: #536bdc; --on-accent: #fff;
-    --soft: #eef1ff; --mark: #e9edff; --green: #2c9272;
-    --sans: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
-    --serif: var(--sans);
+    --bg: #f4f7fc;
+    --surface: #fff;
+    --sidebar: #e8f1ff;
+    --ink: #162842;
+    --ink-soft: #354a64;
+    --muted: #536580;
+    --line: #dce5f0;
+    --line-strong: #c4d2e4;
+    --accent: #225bc0;
+    --accent-dark: #194491;
+    --accent-soft: #e6efff;
+    --sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
-:root[data-theme=dark] {
-    --bg: #151a25; --panel: #1d2432; --side: #111722; --ink: #e9edf7;
-    --muted: #98a4b8; --line: #303a4b; --accent: #a3b2ff; --on-accent: #141b31;
-    --soft: #293451; --mark: #354164; --green: #80c9a9;
+.app { grid-template-columns: 248px minmax(0, 1fr) }
+.sidebar { padding: 24px 16px 16px; border-color: #d1e0f5; color: #213b5f }
+.brand { gap: 11px; padding: 0 4px 27px }
+.brand-logo { border-radius: 12px; background: #cde2ff; color: #193e72; width: 42px; height: 42px }
+.brand-text span, .sidebar .section-head, .sidebar .session-meta, .sidebar .empty { color: #4e6687 }
+.new-chat { background: #cde2ff; color: #18396a; border-radius: 10px; height: 42px }
+.new-chat:hover { background: #b9d6ff }
+.session-search { margin-top: 21px }
+.session-search input { border-color: #c2d4ed; background: #f3f8ff; color: #213b5f }
+.session-search input::placeholder { color: #4e6687 }
+.session:hover, .session.active, .library-entry:hover { background: #d7e7fc }
+.session-title, .session.active .session-title { color: #213b5f }
+.session-delete, .sidebar-close, .library-icon { color: #456286 }
+.sidebar-foot { border-color: #ccddf3; padding-top: 13px }
+.library-entry { background: #f3f8ff; padding: 11px 10px; border-radius: 10px }
+.session.active { box-shadow: inset 3px 0 var(--accent) }
+.sidebar .badge { background: #cde2ff; color: #193e72 }
+.topbar { padding-inline: clamp(18px, 3vw, 40px); height: 66px }
+.topbar-title h1 { font-size: 17px }
+.status { padding: 4px 9px; border-radius: 20px; background: #edf2f9; white-space: nowrap }
+.status[data-state=ready] { background: var(--success-soft) }
+.status[data-state=partial] { background: var(--warn-soft) }
+.status[data-state=down] { background: var(--danger-soft) }
+.ghost-btn, .primary-btn, .send-btn { border-radius: 9px; height: 36px }
+.scope-bar { padding-inline: clamp(18px, 3vw, 40px); gap: 16px }
+.scope-tabs { gap: 6px }
+.scope-tab { border-radius: 20px; padding-inline: 13px }
+.scope-tab[aria-pressed=true] { box-shadow: inset 0 0 0 1px #b4cdf4 }
+.chat-inner { max-width: 920px }
+.composer-inner { max-width: 864px }
+.welcome { padding-top: clamp(22px, 5vh, 55px); padding-bottom: 20px }
+.welcome-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding: clamp(26px, 4vw, 47px);
+    border: 1px solid #d0e0f6;
+    border-radius: 21px;
+    background: #eaf2fe;
 }
-body { font-size: 14px; }
-.shell { grid-template-columns: 248px minmax(0, 1fr); }
-.sidebar { padding: 28px 16px 18px; }
-.brand { gap: 11px; padding: 0 6px 32px; }
-.brandmark { width: 40px; height: 40px; border-radius: 13px; background: #536bdc; color: #fff; font: 700 20px var(--sans); box-shadow: 0 6px 16px #536bdc30; }
-.brandname { font: 700 19px var(--sans); letter-spacing: .1em; }
-.brand small { font-size: 9px; letter-spacing: .12em; }
-.btn, .iconbtn { border-radius: 10px; }
-.newchat { background: #536bdc; color: #fff; border-color: #536bdc; padding: 11px 14px; box-shadow: 0 5px 14px #536bdc24; }
-.newchat:hover { background: #4058cb; border-color: #4058cb; color: white; }
-.search { margin: 22px 0 20px; }
-.search input { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-.search input:focus { border-color: var(--accent); }
-.listhead { font-weight: 600; padding: 0 8px 8px; }
-.session { border: 0; border-radius: 9px; margin: 3px 0; }
-.session.active { background: var(--soft); color: var(--accent); }
-.session-open { padding: 10px; }
-.sidefoot { padding-top: 12px; }
-.library-btn { padding: 11px 10px; font-weight: 600; }
-.count { border-radius: 6px; background: var(--soft); color: var(--accent); }
-.account { padding: 15px 10px 2px; line-height: 1.7; }
-.workspace { background: var(--bg); }
-.topbar { height: 66px; padding: 0 34px; }
-.breadcrumb { gap: 10px; }
-.toolbar .btn { background: var(--panel); border-color: var(--line); font-weight: 600; }
-.health { font-size: 12px; }
-.health.ready { color: var(--green); }
-.chat-head { max-width: 920px; padding: 22px 30px 0; }
-.subject-select { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 1px 10px; }
-.subject-select select { margin-left: 4px; }
-.content-width { max-width: 920px; padding: 0 30px; }
-.welcome { padding: clamp(40px, 8vh, 88px) 0 26px; }
-.welcome .eyebrow { display: inline-flex; align-items: center; color: var(--accent); background: var(--soft); border-radius: 100px; padding: 6px 11px; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
-.welcome h1 { font: 700 clamp(29px, 3.6vw, 44px)/1.35 var(--sans); max-width: none; letter-spacing: -.035em; margin-top: 18px; }
-.intro { margin-top: 14px; line-height: 1.85; max-width: 38em; }
-.subject-pills { gap: 8px; margin-top: 24px; }
-.pill { border-radius: 8px; padding: 6px 12px; background: var(--panel); font-size: 12px; }
-.pill.active { color: var(--accent); background: var(--soft); border-color: var(--soft); }
-.suggestion-label { margin: 42px 0 14px; color: var(--ink); font-size: 14px; font-weight: 700; }
-.suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border: 0; }
-.suggestion { align-items: flex-start; gap: 13px; border: 1px solid var(--line); border-radius: 14px; padding: 17px; min-height: 98px; background: var(--panel); transition: border-color .18s, transform .18s, box-shadow .18s; }
-.suggestion:hover { background: var(--panel); border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 10px 22px #25345a0b; }
-.suggestion-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--soft); color: var(--accent); }
-.suggestion p { font: 600 14px/1.55 var(--sans); }
-.suggestion small { margin-top: 5px; }
-.welcome-note { margin-top: 20px; }
-.messages { gap: 26px; }
-.message.user .message-body { border-radius: 16px 16px 4px 16px; background: var(--soft); }
-.message:not(.user) .message-body { border: 0; padding-left: 0; }
-.message-label { font-weight: 700; }
-.reference { background: var(--soft); border-radius: 7px; padding: 3px 8px; }
-.composer { padding: 12px 30px 22px; background: var(--bg); }
-.composer-wrap { max-width: 860px; }
-.inputbox { border: 1px solid #dfe5f0; border-radius: 16px; padding: 15px 16px 11px; box-shadow: 0 8px 32px #2336610d; }
-.inputbox:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px #536bdc18; }
-.inputbox textarea { min-height: 48px; }
-.send { border-radius: 9px; background: #536bdc; color: white; }
-.dialog { border-radius: 18px; }
+.welcome-hero::before, .welcome-hero::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    width: 236px;
+    height: 236px;
+    border-radius: 50%;
+    right: -48px;
+    bottom: -85px;
+    border: 32px solid #c9dcf7;
+}
+.welcome-hero::after { width: 286px; height: 286px; right: -49px; bottom: -85px; border: 1px solid #b3cbec }
+.welcome h2 { max-width: 16em; margin: 0; font-size: clamp(26px, 4vw, 43px); line-height: 1.2; letter-spacing: -.035em }
+.intro { margin-top: 13px; max-width: 31em; font-size: 14px; color: #405d81 }
+.quick { margin-top: 22px }
+.quick-head { color: var(--ink-soft); font-size: 13px; letter-spacing: 0 }
+.quick-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px }
+.quick-item { flex-direction: column; align-items: flex-start; gap: 8px; position: relative; padding: 12px 14px; border-radius: 13px; min-height: 105px }
+.quick-item:hover { border-color: #a1bde6; background: #f9fbff }
+.quick-tag { min-width: 0; color: var(--accent-dark); background: var(--accent-soft) }
+.quick-item p { padding-right: 12px; font-size: 13px; font-weight: 600 }
+.quick-item::after { position: absolute; right: 10px; bottom: 7px; color: var(--accent); font-size: 17px }
+.welcome-note { margin-top: 12px }
+.composer { background: var(--bg); border-top: 0; padding-top: 8px }
+.inputbox { border-radius: 16px; box-shadow: 0 4px 18px #152d5410 }
+.inputbox:focus-within { box-shadow: 0 0 0 3px #225bc022 }
+.composer-tools { justify-content: flex-end }
+.input-hint { margin-right: auto }
+.message.assistant .message-body { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px clamp(13px, 2.4vw, 22px) }
+.message.user .message-body { background: #e0ecff }
+.sources { padding: 12px; margin-top: 16px; border: 1px solid var(--line); border-radius: 11px; background: #f4f8ff }
+.source.flash { border-color: #b4cdf4 }
+.dialog { border-radius: 18px; box-shadow: 0 24px 80px #19396036 }
+.droparea:hover, .droparea.over { border-color: var(--accent); background: var(--accent-soft) }
+@media (max-width: 960px) {
+    .app { grid-template-columns: 214px minmax(0, 1fr) }
+    .quick-item { padding-inline: 10px }
+}
 @media (max-width: 720px) {
-    .shell { display: block; }
-    .sidebar { width: 280px; }
-    .topbar { height: 60px; padding: 0 14px; }
-    .chat-head { padding: 15px 18px 0; }
-    .content-width { padding: 0 20px; }
-    .welcome { padding: 34px 0 24px; }
-    .welcome h1 { font-size: 29px; }
-    .suggestion-label { margin-top: 28px; }
-    .suggestions { gap: 9px; }
-    .suggestion { display: block; min-height: 0; padding: 13px; }
-    .suggestion-icon { margin-bottom: 10px; }
-    .suggestion p { font-size: 13px; }
-    .suggestion small { font-size: 11px; }
-    .composer { padding: 10px 14px max(12px, env(safe-area-inset-bottom)); }
+    .sidebar { visibility: hidden; width: min(280px, 85vw) }
+    .sidebar.open { visibility: visible }
+    .topbar { height: 58px; padding-inline: 12px; gap: 5px }
+    .topbar-actions { gap: 5px }
+    .topbar-title h1 { font-size: 14px }
+    .status { padding: 3px }
+    .scope-bar { padding-inline: 11px }
+    .scope-tab { padding-inline: 9px }
+    .welcome { padding-top: 16px }
+    .welcome-hero { padding: 21px 16px; border-radius: 15px }
+    .welcome-hero::before { width: 105px; height: 105px; right: -43px; bottom: -65px; border-width: 20px }
+    .welcome-hero::after { width: 138px; height: 138px; right: -39px; bottom: -61px }
+    .welcome h2 { font-size: clamp(24px, 6vw, 31px) }
+    .intro { margin-top: 8px; font-size: 13px }
+    .quick { margin-top: 15px }
+    .quick-list { grid-template-columns: 1fr; gap: 6px }
+    .quick-item { flex-direction: row; align-items: center; min-height: 42px; padding: 8px 27px 8px 9px; gap: 7px }
+    .quick-item p { padding-right: 0; font-size: 12px }
+    .quick-item::after { top: 50%; bottom: auto; transform: translateY(-50%) }
 }
-@media (max-width: 370px) { .suggestions { grid-template-columns: 1fr; } }
 
+@media (min-width: 721px) { .sidebar .sidebar-close { display: none } }
     </style>
 </head>
 <body>
-<div class="shell">
+<div class="app">
     <aside class="sidebar" id="sidebar" aria-label="会话与资料">
         <div class="brand">
-            <div class="brandmark">知</div>
-            <div>
-                <div class="brandname">知序</div>
-                <small>KNOWLEDGE STUDIO</small></div>
+            <div class="brand-logo" aria-hidden="true">▤</div>
+            <div class="brand-text">
+                <strong>企业知识库</strong>
+                <span>问答工作台</span>
+            </div>
+            <button class="icon-btn sidebar-close" id="btn-sidebar-close" aria-label="关闭侧栏">✕</button>
         </div>
-        <button class="btn newchat" id="btn-new">＋ 开启新对话<span></span></button>
-        <div class="search"><input id="session-search" aria-label="搜索会话" placeholder="搜索你的对话…"></div>
-        <div class="listhead"><span>最近对话</span><span id="session-count">0</span></div>
-        <div class="sessions" id="session-list"></div>
-        <div class="sidefoot">
-            <button class="library-btn" id="btn-library">▤ 我的资料库<span class="count" id="document-count">0</span>
+        <button class="new-chat" id="btn-new" type="button">＋ 新建对话</button>
+        <div class="session-search">
+            <input id="session-search" type="search" aria-label="搜索近期会话" placeholder="搜索近期对话">
+        </div>
+        <div class="section-head"><span>近期对话</span><span id="session-count">0</span></div>
+        <nav class="session-list" id="session-list" aria-label="近期会话"></nav>
+        <div class="sidebar-foot">
+            <button class="library-entry" id="btn-library" type="button">
+                <span class="library-icon" aria-hidden="true">▤</span>
+                <span>资料管理</span>
+                <span class="badge" id="document-count">0</span>
             </button>
-            <div class="account">个人学习空间<br>让每次探索都有迹可循</div>
         </div>
     </aside>
+
     <div class="mask" id="mask"></div>
-    <main class="workspace">
+
+    <main class="main">
         <header class="topbar">
-            <div class="breadcrumb">
-                <button class="iconbtn mobile-menu" id="btn-menu" aria-label="打开会话列表" aria-expanded="false">☰
-                </button>
-                <span class="workspace-label">我的工作空间</span><span class="slash">/</span><strong>学科问答</strong>
+            <div class="topbar-title">
+                <button class="icon-btn mobile-menu" id="btn-menu" type="button"
+                        aria-label="打开会话与资料" aria-expanded="false">☰</button>
+                <div>
+                    <h1>知识库问答</h1>
+                </div>
             </div>
-            <div class="toolbar"><span class="health" id="health">正在连接</span>
-                <button class="iconbtn" id="btn-theme" aria-label="切换明暗主题">◐</button>
-                <button class="btn" id="btn-import">↥ 导入资料</button>
+            <div class="topbar-actions">
+                <span class="status" id="health" data-state="loading" role="status">
+                    <i aria-hidden="true"></i><span>正在连接</span>
+                </span>
+                <button class="ghost-btn" id="btn-export" type="button">导出对话</button>
+                <button class="primary-btn" id="btn-import" type="button">导入资料</button>
             </div>
         </header>
-        <div class="chat-head"><label class="subject-select">检索范围 <select id="filter" aria-label="限定问答学科">
-            <option value="">全部学科</option>
-        </select></label>
-            <div class="chat-actions">
-                <button class="iconbtn" id="btn-export" title="导出对话" aria-label="导出当前对话">↧</button>
-                <button class="iconbtn" id="btn-clear" title="删除当前对话" aria-label="删除当前对话">⌫</button>
-            </div>
+
+        <div class="scope-bar">
+            <span class="scope-label">检索范围</span>
+            <div class="scope-tabs" id="scope-tabs" role="group" aria-label="检索范围"></div>
+            <span class="scope-note" id="scope-note" aria-live="polite">当前：全部资料</span>
         </div>
-        <div class="chat-log" id="chat-log" role="log" aria-label="对话记录" aria-live="polite">
-            <div class="content-width">
+
+        <div class="chat-log" id="chat-log">
+            <div class="chat-inner">
                 <section class="welcome" id="welcome">
-                    <div class="eyebrow">YOUR LEARNING SPACE</div>
-                    <h1>今天想弄懂哪个知识点？</h1>
-                    <p class="intro">
-                        直接提问，或先导入课件和笔记，知序会结合你的资料来回答，并标明出处。</p>
-                    <div class="subject-pills" id="subject-pills"></div>
-                    <div class="suggestion-label">不知道从哪里开始？试试这些问题</div>
-                    <div class="suggestions" id="suggestions"></div>
-                    <div class="welcome-note">结合你的资料回答，保留每一段对话。</div>
+                    <div class="welcome-hero">
+                        <h2>你想查哪份企业资料？</h2>
+                        <p class="intro">选一个检索范围，或直接提问。回答用到的资料会列在来源中。</p>
+                    </div>
+                    <div class="quick">
+                        <div class="quick-head">常见问题</div>
+                        <div class="quick-list" id="suggestions"></div>
+                    </div>
+                    <p class="welcome-note">项目自带的资料均为虚构演示资料。</p>
                 </section>
                 <div class="messages" id="messages" hidden></div>
             </div>
         </div>
+
         <footer class="composer">
-            <div class="composer-wrap">
-                <div class="inputbox"><textarea id="input" rows="2" placeholder="有什么想弄明白的？在这里问问…"
-                                                aria-label="输入问题" maxlength="6000"></textarea>
-                    <div class="input-tools">
-                        <button class="input-hint" id="btn-attach">＋ 添加学习资料<span
-                                class="enter-hint"> · Enter 发送</span></button>
-                        <button class="send" id="btn-send" aria-label="发送问题">发送 ↗</button>
+            <div class="composer-inner">
+                <div class="kb-banner" id="kb-banner" role="status" hidden></div>
+                <div class="inputbox">
+                    <textarea id="input" rows="2" maxlength="6000" aria-label="输入问题"
+                              placeholder="输入问题，例如：协作平台登录不上应该找谁？"></textarea>
+                    <div class="composer-tools">
+                        <span class="input-hint">Enter 发送 · Shift + Enter 换行</span>
+                        <button class="send-btn" id="btn-send" type="button" aria-label="发送问题">发送</button>
                     </div>
                 </div>
-                <p class="disclaimer">AI 回答可能存在偏差，请结合引用资料核实重要信息。</p></div>
+                <p class="disclaimer">请结合来源核实重要信息。</p>
+            </div>
         </footer>
     </main>
 </div>
+
 <dialog class="dialog" id="library-dialog" aria-labelledby="library-title">
-    <div class="dialog-head"><h2 id="library-title">我的资料库</h2>
-        <button class="iconbtn" id="close-library" aria-label="关闭资料库">✕</button>
+    <div class="dialog-head">
+        <h2 id="library-title">资料管理</h2>
+        <button class="icon-btn" id="close-library" type="button" aria-label="关闭资料管理">✕</button>
     </div>
-    <p class="dialog-intro">将学习资料加入知识库，之后就可以围绕它们提问。</p>
-    <div class="tabs" role="tablist" aria-label="资料操作">
-        <button class="tab active" id="tab-upload" role="tab" aria-selected="true" aria-controls="upload-panel">
-            导入新资料
-        </button>
-        <button class="tab" id="tab-documents" role="tab" aria-selected="false" aria-controls="documents-panel">
-            已导入资料
-        </button>
+    <div class="dialog-body">
+        <p class="dialog-intro">将 PDF、PPTX 或 TXT 导入指定分类，供问答时检索。</p>
+        <div class="tabs" role="tablist" aria-label="资料操作">
+            <button class="tab active" id="tab-upload" type="button" role="tab" aria-selected="true"
+                    aria-controls="upload-panel">导入资料</button>
+            <button class="tab" id="tab-documents" type="button" role="tab" aria-selected="false"
+                    aria-controls="documents-panel">已导入资料</button>
+        </div>
+
+        <section id="upload-panel" role="tabpanel" aria-labelledby="tab-upload">
+            <label class="field-label" for="upload-source">资料分类</label>
+            <select class="field" id="upload-source"></select>
+            <p class="field-note">分类决定回答时使用的检索范围，可在主界面顶部随时切换。</p>
+            <input id="document-file" type="file" accept=".pdf,.pptx,.txt" hidden>
+            <button class="droparea" id="droparea" type="button">
+                <strong id="selected-file">点击选择，或将文件拖到这里</strong>
+                <small>支持 PDF、PPTX、TXT · 单份不超过 20 MB</small>
+            </button>
+            <div class="upload-summary" id="upload-summary">请选择文件并确认资料分类</div>
+            <div class="statusbox" id="import-status" role="status" hidden></div>
+            <div class="dialog-foot">
+                <button class="ghost-btn" id="btn-upload-cancel" type="button">清除选择</button>
+                <button class="primary-btn" id="btn-upload" type="button" disabled>加入知识库</button>
+            </div>
+        </section>
+
+        <section id="documents-panel" role="tabpanel" aria-labelledby="tab-documents" hidden>
+            <div class="doc-toolbar">
+                <label>分类
+                    <select id="doc-filter" aria-label="按分类筛选已导入资料">
+                        <option value="">全部资料</option>
+                    </select>
+                </label>
+                <span class="doc-total" id="doc-total"></span>
+            </div>
+            <div class="doc-list" id="document-list"></div>
+        </section>
     </div>
-    <section id="upload-panel" role="tabpanel" aria-labelledby="tab-upload"><label class="field-label"
-                                                                                   for="upload-source">资料所属学科</label><select
-            class="field" id="upload-source"></select><input id="document-file" type="file" accept=".pdf,.pptx,.txt"
-                                                             hidden>
-        <button class="droparea" id="droparea"><strong id="selected-file">点击选择，或将文件拖到这里</strong><small>PDF、PPTX、TXT
-            · 每份不超过 20 MB</small></button>
-        <div class="statusbox" id="import-status" role="status" hidden></div>
-        <div class="dialog-foot">
-            <button class="btn primary" id="btn-upload" disabled>加入知识库 →</button>
-        </div>
-    </section>
-    <section id="documents-panel" role="tabpanel" aria-labelledby="tab-documents" hidden>
-        <div class="doc-list" id="document-list"></div>
-    </section>
 </dialog>
-<dialog class="dialog" id="login-dialog" aria-labelledby="login-title"><h2 id="login-title">进入学习空间</h2>
-    <p class="dialog-intro">此空间已启用访问保护，请输入管理员设置的访问口令。</p>
-    <form id="login-form"><label class="field-label" for="access-token">访问口令</label><input class="field"
-                                                                                               id="access-token"
-                                                                                               type="password"
-                                                                                               autocomplete="current-password"
-                                                                                               required>
-        <p id="login-error" class="answer-error" role="alert"></p>
+
+<dialog class="dialog confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+    <div class="dialog-head">
+        <h2 id="confirm-title">确认操作</h2>
+        <button class="icon-btn" id="confirm-close" type="button" aria-label="关闭确认框">✕</button>
+    </div>
+    <div class="dialog-body">
+        <p id="confirm-message"></p>
         <div class="dialog-foot">
-            <button class="btn primary" type="submit">进入空间</button>
+            <button class="ghost-btn" id="confirm-cancel" type="button">取消</button>
+            <button class="danger-btn" id="confirm-ok" type="button">删除</button>
         </div>
-    </form>
+    </div>
 </dialog>
+
+<dialog class="dialog" id="login-dialog" aria-labelledby="login-title">
+    <div class="dialog-head">
+        <h2 id="login-title">进入知识空间</h2>
+    </div>
+    <div class="dialog-body">
+        <p class="dialog-intro">此空间已启用访问保护，请输入管理员设置的访问口令。</p>
+        <form id="login-form">
+            <label class="field-label" for="access-token">访问口令</label>
+            <input class="field" id="access-token" type="password" autocomplete="current-password" required>
+            <p id="login-error" class="answer-error" role="alert"></p>
+            <div class="dialog-foot">
+                <button class="primary-btn" type="submit">进入空间</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" hidden></div>
+
 <script>
     (function () {
         'use strict';
         const $ = id => document.getElementById(id),
-            names = {python: 'Python', java: 'Java', ai: 'AI', mysql: 'MySQL', redis: 'Redis'};
+            names = {policies: '制度规范', products: '产品手册', operations: '业务流程', onboarding: '员工入职'};
         const state = {
             sid: null,
             sessions: [],
             messages: [],
             documents: [],
             sources: [],
+            filter: '',
             busy: false,
             ws: null,
             epoch: 0,
+            seq: 0,
             uploading: false,
             file: null,
             stick: true,
             historyRequest: 0,
-            switching: false
+            switching: false,
+            ready: null,
+            retrievalReady: null,
+            confirmAction: null
         };
-        let toastTimer;
+        let toastTimer, scrollFrame = 0, streamFrame = 0;
 
         function node(tag, cls, text) {
-            const e = document.createElement(tag);
-            if (cls) e.className = cls;
-            if (text !== undefined) e.textContent = text;
-            return e
+            const element = document.createElement(tag);
+            if (cls) element.className = cls;
+            if (text !== undefined) element.textContent = text;
+            return element
         }
 
         function toast(text) {
             $('toast').textContent = text;
             $('toast').hidden = false;
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => $('toast').hidden = true, 4000)
+            toastTimer = setTimeout(() => $('toast').hidden = true, 3600)
         }
 
         async function api(path, options) {
@@ -1339,33 +1335,53 @@ body { font-size: 14px; }
             let response;
             try {
                 response = await fetch(path, {...options, signal: controller.signal})
+            } catch (error) {
+                throw new Error(error.name === 'AbortError' ? '请求超时，请稍后重试' : '无法连接服务，请确认服务已启动')
             } finally {
                 clearTimeout(timer)
             }
             let data;
             try {
                 data = await response.json()
-            } catch (e) {
+            } catch (error) {
                 throw new Error('服务返回异常，请稍后重试')
             }
             if (response.status === 401) {
-                if (!$('login-dialog').open) $('login-dialog').showModal();
-                throw new Error('请先输入正确的访问口令')
+                if (path !== '/api/auth/login' && !$('login-dialog').open) $('login-dialog').showModal();
+                if (path !== '/api/auth/login') throw new Error('请先输入正确的访问口令')
             }
-            if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '操作失败，请重试');
+            if (!response.ok) {
+                throw new Error(typeof data.detail === 'string' ? data.detail : '操作失败，请重试')
+            }
             return data
+        }
+
+        function category(value) {
+            return names[value] || value || '全部资料'
         }
 
         function saveSid(sid) {
             state.sid = sid;
             try {
                 localStorage.setItem('qa_session_id', sid)
-            } catch (e) {
+            } catch (error) {
             }
         }
 
-        function scroll(force) {
-            if (force || state.stick) $('chat-log').scrollTop = $('chat-log').scrollHeight
+        function scheduleScroll(force) {
+            if (force) state.stick = true;
+            if (!state.stick) return;
+            if (scrollFrame) return;
+            scrollFrame = requestAnimationFrame(() => {
+                scrollFrame = 0;
+                const log = $('chat-log');
+                log.scrollTop = log.scrollHeight
+            })
+        }
+
+        function scrollToBottom() {
+            state.stick = true;
+            scheduleScroll(true)
         }
 
         function showChat() {
@@ -1376,9 +1392,42 @@ body { font-size: 14px; }
 
         function setBusy(value) {
             state.busy = value;
-            $('btn-send').classList.toggle('generating', value);
-            $('btn-send').textContent = value ? '■ 停止' : '发送 ↗';
-            $('btn-send').setAttribute('aria-label', value ? '停止生成' : '发送问题')
+            const button = $('btn-send');
+            button.classList.toggle('stop', value);
+            button.textContent = value ? '停止' : '发送';
+            button.setAttribute('aria-label', value ? '停止生成' : '发送问题');
+            button.disabled = !value && state.ready === false
+        }
+
+        function setBanner(text) {
+            $('kb-banner').textContent = text || '';
+            $('kb-banner').hidden = !text
+        }
+
+        function setHealth(data) {
+            state.ready = !!data.ready;
+            state.retrievalReady = !!data.retrieval_ready;
+            const status = $('health');
+            $('btn-send').disabled = !state.ready;
+            $('input').placeholder = state.ready
+                ? '输入问题，例如：协作平台登录不上应该找谁？'
+                : '问答服务未就绪，请检查启动日志';
+            if (!state.ready) {
+                status.dataset.state = 'down';
+                status.lastElementChild.textContent = '服务未就绪';
+                status.title = '问答服务未就绪，请检查启动日志';
+                setBanner('问答服务尚未就绪，暂时无法提问。请检查模型配置或启动日志。')
+            } else if (!state.retrievalReady) {
+                status.dataset.state = 'partial';
+                status.lastElementChild.textContent = '标准问答可用';
+                status.title = '资料检索未就绪，标准问答仍可用';
+                setBanner('知识库检索暂未就绪，标准问答仍可使用；资料导入可能不可用。')
+            } else {
+                status.dataset.state = 'ready';
+                status.lastElementChild.textContent = '知识库已连接';
+                status.title = '知识库检索已就绪';
+                setBanner('')
+            }
         }
 
         function closeSidebar() {
@@ -1387,143 +1436,402 @@ body { font-size: 14px; }
             $('btn-menu').setAttribute('aria-expanded', 'false')
         }
 
-        function stop() {
-            if (state.ws) {
-                state.ws.onclose = null;
-                state.ws.close();
-                state.ws = null
-            }
-            const msg = state.messages[state.messages.length - 1];
-            if (state.busy && msg && msg.role === 'assistant') {
-                msg.status = '已停止生成';
-                renderMessage(msg)
-            }
-            state.epoch++;
-            setBusy(false)
+        function openSidebar() {
+            $('sidebar').classList.add('open');
+            $('mask').classList.add('open');
+            $('btn-menu').setAttribute('aria-expanded', 'true')
         }
 
-        function inline(parent, text) {
-            const regex = /(\*\*([^*]+)\*\*|`([^`]+)`)/g;
+        /* ---------- Markdown ---------- */
+        function renderInline(parent, text, msg) {
+            const regex = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[(\d{1,3})\])/g;
             let cursor = 0, match;
             while ((match = regex.exec(text))) {
-                parent.appendChild(document.createTextNode(text.slice(cursor, match.index)));
-                parent.appendChild(node(match[2] ? 'strong' : 'code', '', match[2] || match[3]));
+                if (match.index > cursor) parent.append(document.createTextNode(text.slice(cursor, match.index)));
+                if (match[2]) {
+                    const index = String(match[2]);
+                    if (msg && msg.sourceIndexes && msg.sourceIndexes.has(index)) {
+                        const button = node('button', 'citation', '[' + index + ']');
+                        button.type = 'button';
+                        button.setAttribute('aria-label', '查看来源 ' + index);
+                        button.onclick = () => focusSource(msg, index);
+                        parent.append(button)
+                    } else {
+                        parent.append(document.createTextNode(match[0]))
+                    }
+                } else if (match[1].startsWith('**')) {
+                    parent.append(node('strong', '', match[1].slice(2, -2)))
+                } else {
+                    parent.append(node('code', '', match[1].slice(1, -1)))
+                }
                 cursor = regex.lastIndex
             }
-            parent.appendChild(document.createTextNode(text.slice(cursor)))
+            if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)))
         }
 
-        function prose(element, text) {
-            element.replaceChildren();
-            const regex = /```([^\n`]*)\n([\s\S]*?)(?:```|$)/g;
-            let cursor = 0, match;
+        function splitCells(line) {
+            let value = line.trim();
+            if (value.startsWith('|')) value = value.slice(1);
+            if (value.endsWith('|')) value = value.slice(0, -1);
+            return value.split('|').map(cell => cell.trim())
+        }
 
-            function plain(value) {
-                const block = node('div', 'plain');
-                inline(block, value);
-                element.appendChild(block)
-            }
+        function isTableSeparator(line) {
+            return /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes('-')
+        }
 
-            while ((match = regex.exec(text))) {
-                plain(text.slice(cursor, match.index));
-                const block = node('div', 'codeblock'), bar = node('div', 'codebar'),
-                    copy = node('button', '', '复制代码');
-                copy.type = 'button';
-                const code = match[2];
-                copy.onclick = () => copyText(code);
-                bar.append(node('span', '', match[1].trim() || 'code'), copy);
-                const pre = node('pre');
-                pre.append(node('code', '', code));
-                block.append(bar, pre);
-                element.append(block);
-                cursor = regex.lastIndex
+        function isBlockStart(lines, index) {
+            const line = lines[index];
+            return /^\s*```/.test(line) || /^\s*#{1,4}\s+/.test(line) || /^\s*>/.test(line)
+                || /^\s*[-*+]\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line) || /^\s*---+\s*$/.test(line)
+                || (line.includes('|') && index + 1 < lines.length && isTableSeparator(lines[index + 1]))
+        }
+
+        function appendCodeBlock(parent, language, code) {
+            const block = node('div', 'codeblock'), bar = node('div', 'codebar'),
+                copy = node('button', '', '复制');
+            copy.type = 'button';
+            copy.onclick = () => copyText(code);
+            bar.append(node('span', '', language || 'code'), copy);
+            const pre = node('pre'), codeEl = node('code', '', code);
+            pre.append(codeEl);
+            block.append(bar, pre);
+            parent.append(block)
+        }
+
+        function appendTable(parent, header, rows, msg) {
+            const wrap = node('div', 'table-wrap'), table = node('table');
+            const thead = node('thead'), tr = node('tr');
+            for (const cell of header) {
+                const th = node('th');
+                renderInline(th, cell, msg);
+                tr.append(th)
             }
-            plain(text.slice(cursor))
+            thead.append(tr);
+            const tbody = node('tbody');
+            for (const row of rows) {
+                const line = node('tr');
+                const width = Math.max(header.length, row.length);
+                for (let index = 0; index < width; index++) {
+                    const td = node('td');
+                    renderInline(td, row[index] || '', msg);
+                    line.append(td)
+                }
+                tbody.append(line)
+            }
+            table.append(thead, tbody);
+            wrap.append(table);
+            parent.append(wrap)
+        }
+
+        function renderMarkdown(container, text, msg) {
+            container.replaceChildren();
+            const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+            let index = 0;
+            while (index < lines.length) {
+                const line = lines[index];
+                const trimmed = line.trim();
+                if (!trimmed) {
+                    index++;
+                    continue
+                }
+                if (trimmed.startsWith('```')) {
+                    const language = trimmed.slice(3).trim();
+                    const code = [];
+                    index++;
+                    while (index < lines.length && !lines[index].trim().startsWith('```')) {
+                        code.push(lines[index]);
+                        index++
+                    }
+                    if (index < lines.length) index++;
+                    appendCodeBlock(container, language, code.join('\n'));
+                    continue
+                }
+                const heading = /^(#{1,4})\s+(.*)$/.exec(trimmed);
+                if (heading) {
+                    const tag = heading[1].length <= 2 ? 'h3' : 'h4';
+                    const element = node(tag);
+                    renderInline(element, heading[2], msg);
+                    container.append(element);
+                    index++;
+                    continue
+                }
+                if (trimmed === '---' || trimmed === '***') {
+                    container.append(node('hr'));
+                    index++;
+                    continue
+                }
+                if (trimmed.startsWith('>')) {
+                    const quote = [];
+                    while (index < lines.length && lines[index].trim().startsWith('>')) {
+                        quote.push(lines[index].trim().replace(/^>\s?/, ''));
+                        index++
+                    }
+                    const block = node('blockquote');
+                    renderInline(block, quote.join('\n'), msg);
+                    container.append(block);
+                    continue
+                }
+                if (line.includes('|') && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+                    const header = splitCells(line);
+                    index += 2;
+                    const rows = [];
+                    while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+                        rows.push(splitCells(lines[index]));
+                        index++
+                    }
+                    appendTable(container, header, rows, msg);
+                    continue
+                }
+                if (/^\s*[-*+]\s+/.test(line)) {
+                    const list = node('ul');
+                    while (index < lines.length && /^\s*[-*+]\s+/.test(lines[index])) {
+                        const item = node('li');
+                        renderInline(item, lines[index].replace(/^\s*[-*+]\s+/, ''), msg);
+                        list.append(item);
+                        index++
+                    }
+                    container.append(list);
+                    continue
+                }
+                if (/^\s*\d+[.)]\s+/.test(line)) {
+                    const list = node('ol');
+                    while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
+                        const item = node('li');
+                        renderInline(item, lines[index].replace(/^\s*\d+[.)]\s+/, ''), msg);
+                        list.append(item);
+                        index++
+                    }
+                    container.append(list);
+                    continue
+                }
+                const paragraph = [line];
+                index++;
+                while (index < lines.length && lines[index].trim() && !isBlockStart(lines, index)) {
+                    paragraph.push(lines[index]);
+                    index++
+                }
+                const block = node('p');
+                paragraph.forEach((value, position) => {
+                    if (position) block.append(node('br'));
+                    renderInline(block, value, msg)
+                });
+                container.append(block)
+            }
+            if (!container.childNodes.length) container.append(node('p', '', text || ''))
         }
 
         async function copyText(text) {
             try {
                 await navigator.clipboard.writeText(text);
                 toast('已复制')
-            } catch (e) {
-                toast('复制失败，请手动选择文字复制')
+            } catch (error) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                document.body.append(area);
+                area.select();
+                let ok = false;
+                try {
+                    ok = document.execCommand('copy')
+                } catch (ignore) {
+                }
+                area.remove();
+                toast(ok ? '已复制' : '复制失败，请手动选择文字复制')
             }
         }
 
-        function renderMessage(msg) {
-            if (!msg.element) {
-                const row = node('article', 'message ' + msg.role);
-                if (msg.role === 'assistant') row.append(node('div', 'avatar', '知'));
-                const body = node('div', 'message-body');
-                if (msg.role === 'assistant') body.append(node('div', 'message-label', '知序 · 知识助手'));
-                msg.prose = node('div', 'prose');
-                body.append(msg.prose);
-                msg.extra = node('div');
-                body.append(msg.extra);
-                row.append(body);
-                $('messages').append(row);
-                msg.element = row
-            }
-            if (msg.role === 'user') {
-                msg.prose.textContent = msg.text;
-                msg.prose.style.whiteSpace = 'pre-wrap';
+        /* ---------- 消息 ---------- */
+        function focusSource(msg, index) {
+            const row = document.getElementById('source-' + msg.id + '-' + index);
+            if (!row) return;
+            row.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            row.classList.add('flash');
+            setTimeout(() => row.classList.remove('flash'), 1600)
+        }
+
+        function ensureMessage(msg) {
+            if (msg.element) return msg;
+            const article = node('article', 'message ' + msg.role);
+            const body = node('div', 'message-body');
+            if (msg.role === 'assistant') body.append(node('div', 'assistant-label', '知识库助手'));
+            msg.prose = node('div', 'prose');
+            msg.extra = node('div');
+            body.append(msg.prose, msg.extra);
+            article.append(body);
+            $('messages').append(article);
+            msg.element = article;
+            return msg
+        }
+
+        function showThinking(msg) {
+            ensureMessage(msg);
+            msg.prose.replaceChildren();
+            const box = node('div', 'thinking');
+            box.append(node('i'), document.createTextNode('正在检索资料，整理答案…'));
+            msg.prose.append(box)
+        }
+
+        function rebuildSourceIndexes(msg) {
+            msg.sourceIndexes = new Set((msg.sources || []).map(
+                (item, position) => String(item.index === undefined || item.index === null ? position + 1 : item.index)))
+        }
+
+        function renderSources(msg) {
+            const sources = msg.sources || [];
+            if (!sources.length) {
+                if (msg.error) return;
+                let text = '本次回答未引用知识库资料。';
+                if (msg.status === '已停止生成') text = '已停止生成，未获取到来源信息。';
+                else if ((msg.text || '').includes('没有找到足够相关的资料')) text = '知识库中没有找到足够相关的资料。';
+                else if ((msg.text || '').startsWith('以下回答未引用知识库资料')) text = '本次回答未引用知识库资料，请谨慎参考。';
+                msg.extra.append(node('div', 'source-empty', text));
                 return
             }
-            if (!msg.text && msg.status === '正在思考') {
-                msg.prose.replaceChildren(node('div', 'thinking', '正在检索资料，整理答案…'))
-            } else prose(msg.prose, msg.text);
+            const hasFaq = sources.some(item => String(item.title || '').startsWith('标准问答库'));
+            const section = node('section', 'sources');
+            const head = node('div', 'sources-head', hasFaq ? '来源 · 标准问答' : '来源 · 知识库资料');
+            section.append(head);
+            const list = node('ol', 'source-list');
+            sources.forEach((item, position) => {
+                const index = item.index === undefined || item.index === null ? position + 1 : item.index;
+                const title = String(item.title || '来源');
+                const isFaq = title.startsWith('标准问答库');
+                const document = item.source_doc
+                    || (isFaq ? title.replace(/^标准问答库\s*·\s*/, '') : title);
+                const row = node('li', 'source');
+                row.id = 'source-' + msg.id + '-' + index;
+                const badge = node('span', 'source-index', String(index));
+                const main = node('div', 'source-main');
+                const titleRow = node('div', 'source-title');
+                titleRow.append(node('span', '', document || '标准问答库'));
+                titleRow.append(node('span', 'tag' + (isFaq ? ' faq' : ''), isFaq ? '标准问答库' : '知识库引用'));
+                if ((document || '').includes('虚构演示')) titleRow.append(node('span', 'tag demo', '虚构演示'));
+                const meta = [];
+                if (item.subject) meta.push(category(item.subject));
+                if (item.page) meta.push('第 ' + item.page + ' 页');
+                else if (item.slide) meta.push('第 ' + item.slide + ' 张幻灯片');
+                if (meta.length) main.append(titleRow, node('div', 'source-meta', meta.join(' · ')));
+                else main.append(titleRow);
+                row.append(badge, main);
+                list.append(row)
+            });
+            section.append(list);
+            msg.extra.append(section)
+        }
+
+        function renderExtras(msg) {
             msg.extra.replaceChildren();
             if (msg.error) msg.extra.append(node('div', 'answer-error', msg.error));
-            if (msg.sources && msg.sources.length) {
-                const refs = node('div', 'references');
-                for (const item of msg.sources) {
-                    const location = item.page ? ' · 第 ' + item.page + ' 页' : item.slide ? ' · 第 ' + item.slide + ' 张' : '';
-                    refs.append(node('span', 'reference', '[' + item.index + '] ' + item.title + location))
-                }
-                msg.extra.append(refs)
+            if (msg.notice) msg.extra.append(node('div', 'answer-notice', msg.notice));
+            renderSources(msg);
+            const foot = node('div', 'answer-foot');
+            if (msg.text) {
+                const copy = node('button', '', '复制回答');
+                copy.type = 'button';
+                copy.onclick = () => copyText(msg.text);
+                foot.append(copy)
             }
-            const foot = node('div', 'answer-foot'), copy = node('button', 'iconbtn', '复制');
-            copy.type = 'button';
-            copy.setAttribute('aria-label', '复制回答');
-            copy.onclick = () => copyText(msg.text);
-            foot.append(copy, node('span', '', msg.status === '正在思考' ? (msg.text ? '正在生成…' : '检索中…') : msg.status || '已完成'));
+            foot.append(node('span', '', msg.status || ''));
             msg.extra.append(foot)
         }
 
-        function addMessage(role, text) {
-            const msg = {role, text, status: role === 'assistant' ? '正在思考' : '', sources: []};
+        function finalizeAssistant(msg) {
+            if (msg.done) return;
+            msg.done = true;
+            ensureMessage(msg);
+            msg.prose.classList.remove('is-streaming');
+            if (msg.text) {
+                rebuildSourceIndexes(msg);
+                renderMarkdown(msg.prose, msg.text, msg)
+            } else if (!msg.error) {
+                msg.prose.replaceChildren(node('div', 'thinking', '未返回回答内容。'))
+            } else {
+                msg.prose.replaceChildren()
+            }
+            renderExtras(msg);
+            scheduleScroll(false)
+        }
+
+        function appendDelta(msg, delta) {
+            if (!delta) return;
+            ensureMessage(msg);
+            if (!msg.streamNode) {
+                msg.prose.replaceChildren();
+                msg.streamNode = document.createTextNode('');
+                msg.prose.append(msg.streamNode);
+                msg.prose.classList.add('is-streaming')
+            }
+            msg.streamNode.appendData(delta);
+            if (!streamFrame) {
+                streamFrame = requestAnimationFrame(() => {
+                    streamFrame = 0;
+                    scheduleScroll(false)
+                })
+            }
+        }
+
+        function addMessage(role, text, options) {
+            options = options || {};
+            const msg = {
+                id: ++state.seq,
+                role,
+                text: text || '',
+                status: options.status || (role === 'assistant' ? '正在生成' : ''),
+                sources: options.sources || [],
+                error: '',
+                notice: '',
+                done: !!options.instant,
+                element: null,
+                prose: null,
+                extra: null,
+                streamNode: null,
+                sourceIndexes: new Set()
+            };
             state.messages.push(msg);
             showChat();
-            renderMessage(msg);
-            scroll(true);
+            ensureMessage(msg);
+            if (role === 'user') {
+                msg.prose.textContent = msg.text
+            } else if (role === 'assistant') {
+                if (options.instant) finalizeAssistant(msg);
+                else showThinking(msg)
+            }
+            scheduleScroll(true);
             return msg
         }
 
         function resetMessages() {
             state.messages = [];
             $('messages').replaceChildren();
-            showChat()
+            showChat();
+            state.stick = true
         }
 
+        /* ---------- 会话 ---------- */
         function renderSessions() {
-            const filter = $('session-search').value.trim().toLowerCase(), list = $('session-list');
+            const keyword = $('session-search').value.trim().toLowerCase();
+            const list = $('session-list');
             list.replaceChildren();
             $('session-count').textContent = state.sessions.length;
-            const rows = state.sessions.filter(s => s.title.toLowerCase().includes(filter));
+            const rows = state.sessions.filter(item => (item.title || '').toLowerCase().includes(keyword));
             if (!rows.length) {
-                list.append(node('p', 'empty', filter ? '没有找到相关对话' : '还没有对话记录\n从一个问题开始吧'));
+                list.append(node('p', 'empty', keyword ? '没有找到相关对话' : '还没有对话记录\n从右侧的问题开始吧'));
                 return
             }
-            for (const s of rows) {
-                const row = node('div', 'session' + (s.session_id === state.sid ? ' active' : '')),
-                    open = node('button', 'session-open', '▱  ' + (s.title || '未命名对话')),
-                    del = node('button', 'session-delete', '×');
-                open.title = s.title;
-                open.type = del.type = 'button';
-                open.onclick = () => switchSession(s.session_id);
-                del.setAttribute('aria-label', '删除会话：' + s.title);
-                del.onclick = () => deleteSession(s.session_id);
-                row.append(open, del);
+            for (const item of rows) {
+                const row = node('div', 'session' + (item.session_id === state.sid ? ' active' : ''));
+                const open = node('button', 'session-open');
+                open.type = 'button';
+                open.title = item.title || '未命名对话';
+                open.append(node('span', 'session-title', item.title || '未命名对话'));
+                open.append(node('span', 'session-meta',
+                    (item.rounds ? item.rounds + ' 轮 · ' : '') + (item.updated_at || '')));
+                open.onclick = () => switchSession(item.session_id);
+                const remove = node('button', 'session-delete', '×');
+                remove.type = 'button';
+                remove.setAttribute('aria-label', '删除会话：' + (item.title || '未命名对话'));
+                remove.onclick = () => deleteSession(item.session_id, item.title || '未命名对话');
+                row.append(open, remove);
                 list.append(row)
             }
         }
@@ -1532,8 +1840,8 @@ body { font-size: 14px; }
             try {
                 state.sessions = (await api('/api/sessions?limit=200')).sessions || [];
                 renderSessions()
-            } catch (e) {
-                toast(e.message)
+            } catch (error) {
+                if (state.ready !== false) toast(error.message)
             }
         }
 
@@ -1549,8 +1857,8 @@ body { font-size: 14px; }
                 renderSessions();
                 closeSidebar();
                 $('input').focus()
-            } catch (e) {
-                if (request === state.historyRequest) toast(e.message)
+            } catch (error) {
+                if (request === state.historyRequest) toast(error.message)
             } finally {
                 if (request === state.historyRequest) state.switching = false
             }
@@ -1569,70 +1877,106 @@ body { font-size: 14px; }
                 if (request !== state.historyRequest || state.sid !== sid) return;
                 for (const item of result.history || []) {
                     addMessage('user', item.question);
-                    const answer = addMessage('assistant', item.answer);
-                    answer.status = '历史回答';
-                    answer.sources = item.sources || [];
-                    renderMessage(answer)
+                    addMessage('assistant', item.answer, {
+                        sources: item.sources || [],
+                        status: '历史回答',
+                        instant: true
+                    })
                 }
-                scroll(true)
-            } catch (e) {
-                if (request === state.historyRequest) toast(e.message)
+                scrollToBottom()
+            } catch (error) {
+                if (request === state.historyRequest) toast(error.message)
             }
         }
 
-        async function deleteSession(sid) {
-            if (!confirm('删除这段对话？删除后无法恢复。')) return;
-            if (state.sid === sid) stop();
-            state.switching = true;
-            try {
-                await api('/api/history/' + encodeURIComponent(sid), {method: 'DELETE'});
-                if (state.sid === sid) await newSession();
-                await loadSessions();
-                toast('对话已删除')
-            } catch (e) {
-                toast(e.message)
-            } finally {
-                state.switching = false
-            }
+        function deleteSession(sid, title) {
+            confirmAction('删除对话', '确定删除“' + title + '”这段对话吗？删除后无法恢复。', '删除', async () => {
+                if (state.sid === sid) stop();
+                state.switching = true;
+                try {
+                    await api('/api/history/' + encodeURIComponent(sid), {method: 'DELETE'});
+                    if (state.sid === sid) await newSession();
+                    await loadSessions();
+                    toast('对话已删除')
+                } catch (error) {
+                    toast(error.message)
+                } finally {
+                    state.switching = false
+                }
+            })
         }
 
-        function renderPills() {
-            const box = $('subject-pills');
+        /* ---------- 检索范围 ---------- */
+        function renderScope() {
+            const box = $('scope-tabs');
             box.replaceChildren();
-            for (const source of [''].concat(state.sources)) {
-                const button = node('button', 'pill' + ($('filter').value === source ? ' active' : ''), source ? names[source] || source : '全部学科');
+            const values = [''].concat(state.sources);
+            for (const value of values) {
+                const button = node('button', 'scope-tab', category(value));
                 button.type = 'button';
+                button.setAttribute('aria-pressed', String(state.filter === value));
                 button.onclick = () => {
-                    $('filter').value = source;
-                    renderPills()
+                    state.filter = value;
+                    renderScope();
+                    $('scope-note').textContent = '当前：' + category(value)
+                };
+                box.append(button)
+            }
+            $('scope-note').textContent = '当前：' + category(state.filter)
+        }
+
+        function quickQuestions() {
+            const rows = [
+                ['协作平台登录不上应该找谁？', '产品手册'],
+                ['报销/审批进度在哪里查询？', '制度规范'],
+                ['新员工入职第一天几点到哪里报到？', '员工入职']
+            ];
+            const box = $('suggestions');
+            box.replaceChildren();
+            for (const [question, tag] of rows) {
+                const button = node('button', 'quick-item');
+                button.type = 'button';
+                button.append(node('span', 'quick-tag', tag), node('p', '', question));
+                button.onclick = () => {
+                    if (state.ready === false) {
+                        toast('问答服务尚未就绪');
+                        return
+                    }
+                    $('input').value = question;
+                    send()
                 };
                 box.append(button)
             }
         }
 
-        function suggestions() {
-            const rows = [['解释一下 Python 的生成器，举一个简单例子。', '从基础概念开始', '{ }'], ['MySQL 的索引为什么使用 B+ 树？', '理解背后的原理', 'DB'], ['缓存穿透、击穿和雪崩有什么区别？', '把相近概念分清楚', '↔'], ['用一个例子解释 RAG 是怎么工作的。', '让抽象知识具体起来', 'AI']];
-            for (const [question, sub, mark] of rows) {
-                const b = node('button', 'suggestion');
-                b.type = 'button';
-                const content = node('div');
-                content.append(node('p', '', question), node('small', '', sub));
-                b.append(node('span', 'suggestion-icon', mark), content);
-                b.onclick = () => {
-                    $('input').value = question;
-                    send()
-                };
-                $('suggestions').append(b)
+        /* ---------- 提问 ---------- */
+        function stop() {
+            if (state.ws) {
+                state.ws.onclose = null;
+                state.ws.close();
+                state.ws = null
             }
+            state.epoch++;
+            const msg = state.messages[state.messages.length - 1];
+            if (state.busy && msg && msg.role === 'assistant' && !msg.done) {
+                msg.status = '已停止生成';
+                msg.notice = '已停止生成，本次回答可能不完整。';
+                finalizeAssistant(msg)
+            }
+            setBusy(false)
         }
 
-        async function send() {
+        function send() {
             if (state.busy) {
                 stop();
                 return
             }
             if (state.switching) {
                 toast('正在开启新对话，请稍候');
+                return
+            }
+            if (state.ready === false) {
+                toast('问答服务尚未就绪，请检查启动日志');
                 return
             }
             const question = $('input').value.trim();
@@ -1646,38 +1990,22 @@ body { font-size: 14px; }
                 return
             }
             state.historyRequest++;
-            const epoch = ++state.epoch, sid = state.sid, source = $('filter').value || null;
+            const epoch = ++state.epoch, sid = state.sid, source = state.filter || null;
             addMessage('user', question);
             const answer = addMessage('assistant', '');
             $('input').value = '';
             $('input').style.height = 'auto';
             setBusy(true);
-            let finished = false, frame = false;
             const socket = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/stream');
             state.ws = socket;
 
-            function update() {
-                if (!frame) {
-                    frame = true;
-                    requestAnimationFrame(() => {
-                        frame = false;
-                        if (epoch === state.epoch) {
-                            renderMessage(answer);
-                            scroll(false)
-                        }
-                    })
-                }
-            }
-
-            function end(status, error) {
+            function finish(status, error) {
                 if (epoch !== state.epoch) return;
-                finished = true;
                 answer.status = status;
-                answer.error = error;
-                renderMessage(answer);
+                if (error) answer.error = error;
+                finalizeAssistant(answer);
                 setBusy(false);
-                state.ws = null;
-                scroll(false)
+                state.ws = null
             }
 
             socket.onopen = () => socket.send(JSON.stringify({
@@ -1690,8 +2018,8 @@ body { font-size: 14px; }
                 let data;
                 try {
                     data = JSON.parse(event.data)
-                } catch (e) {
-                    end('生成失败', '服务返回格式异常');
+                } catch (error) {
+                    finish('生成失败', '服务返回格式异常，请重试。');
                     socket.close();
                     return
                 }
@@ -1699,23 +2027,35 @@ body { font-size: 14px; }
                     if (data.session_id) saveSid(data.session_id)
                 } else if (data.type === 'token') {
                     answer.text += data.token || '';
-                    update()
+                    appendDelta(answer, data.token || '')
                 } else if (data.type === 'end') {
-                    answer.sources = data.sources || [];
-                    end('已完成 · ' + Number(data.processing_time || 0).toFixed(1) + ' 秒');
+                    answer.sources = Array.isArray(data.sources) ? data.sources : [];
+                    rebuildSourceIndexes(answer);
+                    finish('已完成 · ' + Number(data.processing_time || 0).toFixed(1) + ' 秒');
                     socket.close();
                     loadSessions()
                 } else if (data.type === 'error') {
-                    end('生成失败', data.error || '生成失败，请重试');
+                    finish('生成失败', data.error || '生成失败，请重试。');
                     socket.close()
                 }
             };
             socket.onerror = () => {
-                if (!finished) end('连接失败', '无法连接问答服务，请确认服务正常，或刷新后重新验证访问口令。')
+                if (!answer.done) finish('连接失败', '无法连接问答服务，请确认服务正常后重试。')
             };
             socket.onclose = () => {
-                if (!finished && epoch === state.epoch) end('连接中断', '连接提前中断，当前回答可能不完整，请重试。')
+                if (!answer.done && epoch === state.epoch) {
+                    finish('连接中断', '连接提前中断，当前回答可能不完整，请重试。')
+                }
             }
+        }
+
+        /* ---------- 资料管理 ---------- */
+        function confirmAction(title, message, label, action) {
+            $('confirm-title').textContent = title;
+            $('confirm-message').textContent = message;
+            $('confirm-ok').textContent = label;
+            state.confirmAction = action;
+            $('confirm-dialog').showModal()
         }
 
         function tab(name) {
@@ -1729,11 +2069,21 @@ body { font-size: 14px; }
             if (!upload) loadDocuments()
         }
 
-        function openLibrary(name = 'upload') {
+        function openLibrary(name) {
             closeSidebar();
-            if ($('filter').value) $('upload-source').value = $('filter').value;
-            tab(name);
+            if (state.filter && $('upload-source').value !== state.filter) $('upload-source').value = state.filter;
+            updateUploadSummary();
+            tab(name || 'upload');
             $('library-dialog').showModal()
+        }
+
+        function updateUploadSummary() {
+            const source = $('upload-source').value;
+            if (state.file) {
+                $('upload-summary').textContent = '将导入：' + state.file.name + ' → ' + category(source)
+            } else {
+                $('upload-summary').textContent = '请选择文件并确认资料分类'
+            }
         }
 
         function selectFile(file) {
@@ -1760,15 +2110,15 @@ body { font-size: 14px; }
             if (state.uploading || !state.file) return;
             const source = $('upload-source').value, file = state.file;
             if (!source) {
-                toast('请先选择学科');
+                toast('请先选择资料分类');
                 return
             }
             state.uploading = true;
             $('btn-upload').disabled = true;
-            $('btn-upload').textContent = '正在解析与入库…';
+            $('btn-upload').textContent = '正在处理…';
             $('import-status').hidden = false;
             $('import-status').classList.remove('warning');
-            $('import-status').textContent = '正在处理 ' + file.name + '，扫描件识别可能需要较长时间。你可以关闭此窗口继续阅读。';
+            $('import-status').textContent = '正在处理 ' + file.name + '（' + category(source) + '），请稍候。';
             try {
                 const params = new URLSearchParams({source, filename: file.name});
                 const response = await fetch('/api/documents?' + params, {
@@ -1776,10 +2126,16 @@ body { font-size: 14px; }
                     headers: {'Content-Type': 'application/octet-stream'},
                     body: file
                 });
-                const result = await response.json();
+                let result = {};
+                try {
+                    result = await response.json()
+                } catch (error) {
+                }
                 if (response.status === 401 && !$('login-dialog').open) $('login-dialog').showModal();
-                if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '导入失败');
-                $('import-status').textContent = result.status === 'already_imported' ? '该文件已在此学科中，无需重复导入。' : '已加入 ' + (names[source] || source) + ' 知识库，共 ' + result.chunks + ' 个知识块。';
+                if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '导入失败，请重试');
+                $('import-status').textContent = result.status === 'already_imported'
+                    ? '该文件已在“' + category(source) + '”中，无需重复导入。'
+                    : '已加入“' + category(source) + '”，共 ' + (result.chunks || 0) + ' 个知识块。';
                 if (result.warnings && result.warnings.length) {
                     $('import-status').classList.add('warning');
                     $('import-status').textContent += '\n注意：' + result.warnings.join('\n')
@@ -1787,65 +2143,88 @@ body { font-size: 14px; }
                 state.file = null;
                 $('document-file').value = '';
                 $('selected-file').textContent = '点击选择，或将文件拖到这里';
+                updateUploadSummary();
                 toast('资料处理完成');
                 await loadDocuments()
-            } catch (e) {
+            } catch (error) {
                 $('import-status').classList.add('warning');
-                $('import-status').textContent = e.message || '导入失败，请重试'
+                $('import-status').textContent = error.message || '导入失败，请重试'
             } finally {
                 state.uploading = false;
                 $('btn-upload').disabled = !state.file;
-                $('btn-upload').textContent = '加入知识库 →'
+                $('btn-upload').textContent = '加入知识库'
             }
         }
 
         async function loadDocuments() {
+            const source = $('doc-filter').value || '';
             try {
-                state.documents = (await api('/api/documents')).documents || [];
-                $('document-count').textContent = state.documents.length;
+                const query = source ? '?source=' + encodeURIComponent(source) : '';
+                const result = await api('/api/documents' + query);
+                state.documents = result.documents || [];
+                if (!source) $('document-count').textContent = state.documents.length;
+                $('doc-total').textContent = '共 ' + state.documents.length + ' 份';
                 const list = $('document-list');
                 list.replaceChildren();
                 if (!state.documents.length) {
-                    list.append(node('p', 'empty', '还没有导入资料。支持 PDF、PPTX 和 TXT。'));
+                    list.append(node('p', 'empty', source ? '该分类下还没有导入资料。' : '还没有导入资料。\n支持 PDF、PPTX 和 TXT，单份不超过 20 MB。'));
                     return
                 }
                 for (const item of state.documents) {
-                    const row = node('div', 'doc-row'), main = node('div', 'doc-main');
-                    main.append(node('div', 'doc-name', item.filename), node('div', 'doc-meta', (names[item.source] || item.source) + ' · ' + (item.size / 1024).toFixed(0) + ' KB' + (item.chunks ? ' · ' + item.chunks + ' 个知识块' : '')));
-                    if (item.warnings && item.warnings.length) main.append(node('div', 'doc-warning', '部分图片未识别，请查看导入时的提示'));
+                    const row = node('div', 'doc-row');
+                    const extension = item.filename.split('.').pop().toUpperCase();
+                    const main = node('div', 'doc-main');
+                    const name = node('div', 'doc-name');
+                    name.append(node('span', '', item.filename));
+                    if (item.filename.includes('虚构演示')) name.append(node('span', 'tag demo', '虚构演示'));
+                    const meta = [category(item.source), item.size < 1024 ? '<1 KB' : Math.round(item.size / 1024) + ' KB'];
+                    if (item.chunks) meta.push(item.chunks + ' 个知识块');
+                    main.append(name, node('div', 'doc-meta', meta.join(' · ')));
+                    if (item.warnings && item.warnings.length) {
+                        main.append(node('div', 'doc-warning', '部分内容未能识别，请查看导入提示'))
+                    }
                     const remove = node('button', 'doc-delete', '删除');
                     remove.type = 'button';
                     remove.setAttribute('aria-label', '删除资料 ' + item.filename);
-                    remove.onclick = async () => {
-                        if (!confirm('确定删除资料“' + item.filename + '”及其知识库索引吗？此操作无法撤销。')) return;
-                        remove.disabled = true;
-                        try {
-                            const params = new URLSearchParams({source: item.source, document_id: item.id});
-                            await api('/api/documents?' + params, {method: 'DELETE'});
-                            toast('资料已删除');
-                            await loadDocuments()
-                        } catch (e) {
-                            toast(e.message || '删除失败，请重试');
-                            remove.disabled = false
-                        }
+                    remove.onclick = () => {
+                        confirmAction('删除资料',
+                            '确定删除“' + item.filename + '”（' + category(item.source) + '）及其知识库索引吗？此操作无法撤销。',
+                            '删除', async () => {
+                                remove.disabled = true;
+                                try {
+                                    const params = new URLSearchParams({source: item.source, document_id: item.id});
+                                    await api('/api/documents?' + params, {method: 'DELETE'});
+                                    toast('资料已删除');
+                                    await loadDocuments()
+                                } catch (error) {
+                                    toast(error.message || '删除失败，请重试');
+                                    remove.disabled = false
+                                }
+                            })
                     };
-                    row.append(node('span', 'doc-icon', item.filename.split('.').pop().toUpperCase()), main, remove);
+                    row.append(node('span', 'doc-icon', extension), main, remove);
                     list.append(row)
                 }
-            } catch (e) {
-                $('document-list').replaceChildren(node('p', 'empty', e.message));
-                $('document-count').textContent = '—'
+            } catch (error) {
+                $('document-list').replaceChildren(node('p', 'empty', error.message));
+                $('document-count').textContent = '—';
+                $('doc-total').textContent = ''
             }
         }
 
+        /* ---------- 状态与启动 ---------- */
         async function health() {
             try {
-                const response = await fetch('/health'), data = await response.json();
-                $('health').classList.toggle('ready', !!data.ready);
-                $('health').textContent = !data.ready ? '服务未就绪' : data.retrieval_ready ? '● 知识库已连接' : '仅标准问答可用'
-            } catch (e) {
-                $('health').textContent = '服务未连接';
-                $('health').classList.remove('ready')
+                const response = await fetch('/health');
+                const data = await response.json();
+                setHealth(data)
+            } catch (error) {
+                $('health').dataset.state = 'down';
+                $('health').lastElementChild.textContent = '服务未连接';
+                $('health').title = '无法连接服务';
+                state.ready = false;
+                $('btn-send').disabled = true;
+                setBanner('无法连接问答服务，请确认服务已启动。')
             }
         }
 
@@ -1854,36 +2233,53 @@ body { font-size: 14px; }
             try {
                 const result = await api('/api/sources');
                 state.sources = result.sources || [];
-                $('filter').replaceChildren(new Option('全部学科', ''));
-                $('upload-source').replaceChildren();
+                const upload = $('upload-source'), filter = $('doc-filter');
+                upload.replaceChildren();
+                filter.replaceChildren(new Option('全部资料', ''));
                 for (const source of state.sources) {
-                    $('filter').append(new Option(names[source] || source, source));
-                    $('upload-source').append(new Option(names[source] || source, source))
+                    upload.append(new Option(category(source), source));
+                    filter.append(new Option(category(source), source))
                 }
-                renderPills();
+                if (state.filter && !state.sources.includes(state.filter)) state.filter = '';
+                renderScope();
                 loadSessions();
                 loadDocuments();
                 let saved;
                 try {
                     saved = localStorage.getItem('qa_session_id')
-                } catch (e) {
+                } catch (error) {
                 }
-                if (saved && /^[0-9a-f-]{36}$/i.test(saved)) await switchSession(saved); else await newSession()
-            } catch (e) {
-                toast(e.message)
+                if (saved && /^[0-9a-f-]{36}$/i.test(saved)) await switchSession(saved);
+                else await newSession()
+            } catch (error) {
+                toast(error.message)
             }
         }
 
+        /* ---------- 事件 ---------- */
         $('btn-send').onclick = send;
         $('btn-new').onclick = newSession;
-        $('btn-clear').onclick = () => {
-            if (state.messages.length) deleteSession(state.sid); else toast('当前没有需要删除的对话')
+        $('btn-export').onclick = () => {
+            if (!state.messages.length) {
+                toast('还没有可以导出的对话');
+                return
+            }
+            const text = state.messages.map(message => {
+                const role = message.role === 'user' ? '我：' : '知识库助手：';
+                const sources = (message.sources || []).map(item => item.title).filter(Boolean);
+                return role + message.text + (sources.length ? '\n来源：' + sources.join('、') : '')
+            }).join('\n\n');
+            const url = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'}));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = '知识库对话-' + new Date().toISOString().slice(0, 10) + '.txt';
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000)
         };
         $('session-search').oninput = renderSessions;
-        $('filter').onchange = renderPills;
-        $('input').addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                e.preventDefault();
+        $('input').addEventListener('keydown', event => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                event.preventDefault();
                 if (!state.busy) send()
             }
         });
@@ -1892,63 +2288,61 @@ body { font-size: 14px; }
             $('input').style.height = Math.min($('input').scrollHeight, 180) + 'px'
         };
         $('chat-log').onscroll = () => {
-            const el = $('chat-log');
-            state.stick = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+            const element = $('chat-log');
+            state.stick = element.scrollHeight - element.scrollTop - element.clientHeight < 80
         };
         $('btn-menu').onclick = () => {
-            const open = !$('sidebar').classList.contains('open');
-            $('sidebar').classList.toggle('open', open);
-            $('mask').classList.toggle('open', open);
-            $('btn-menu').setAttribute('aria-expanded', String(open))
+            if ($('sidebar').classList.contains('open')) closeSidebar(); else openSidebar()
         };
+        $('btn-sidebar-close').onclick = closeSidebar;
         $('mask').onclick = closeSidebar;
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') closeSidebar()
-        });
-        $('btn-import').onclick = () => openLibrary();
-        $('btn-attach').onclick = () => openLibrary();
+        $('btn-import').onclick = () => openLibrary('upload');
         $('btn-library').onclick = () => openLibrary('documents');
         $('close-library').onclick = () => $('library-dialog').close();
         $('tab-upload').onclick = () => tab('upload');
         $('tab-documents').onclick = () => tab('documents');
         $('droparea').onclick = () => $('document-file').click();
-        $('document-file').onchange = () => selectFile($('document-file').files[0]);
-        $('droparea').ondragover = e => {
-            e.preventDefault();
+        $('document-file').onchange = () => {
+            selectFile($('document-file').files[0]);
+            updateUploadSummary()
+        };
+        $('droparea').ondragover = event => {
+            event.preventDefault();
             $('droparea').classList.add('over')
         };
         $('droparea').ondragleave = () => $('droparea').classList.remove('over');
-        $('droparea').ondrop = e => {
-            e.preventDefault();
+        $('droparea').ondrop = event => {
+            event.preventDefault();
             $('droparea').classList.remove('over');
-            selectFile(e.dataTransfer.files[0])
+            selectFile(event.dataTransfer.files[0]);
+            updateUploadSummary()
         };
+        $('upload-source').onchange = updateUploadSummary;
         $('btn-upload').onclick = upload;
-        $('btn-theme').onclick = () => {
-            const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-            document.documentElement.dataset.theme = theme;
-            try {
-                localStorage.setItem('qa_theme', theme)
-            } catch (e) {
-            }
+        $('btn-upload-cancel').onclick = () => {
+            state.file = null;
+            $('document-file').value = '';
+            $('selected-file').textContent = '点击选择，或将文件拖到这里';
+            $('btn-upload').disabled = true;
+            $('import-status').hidden = true;
+            updateUploadSummary()
         };
-        $('btn-export').onclick = () => {
-            if (!state.messages.length) {
-                toast('还没有可以导出的对话');
-                return
-            }
-            const text = state.messages.map(m => (m.role === 'user' ? '我：' : '知序：') + m.text + (m.sources && m.sources.length ? '\n来源：' + m.sources.map(s => s.title).join('、') : '')).join('\n\n');
-            const url = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'})),
-                link = document.createElement('a');
-            link.href = url;
-            link.download = '知序对话-' + new Date().toISOString().slice(0, 10) + '.txt';
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000)
+        $('doc-filter').onchange = loadDocuments;
+        $('confirm-cancel').onclick = $('confirm-close').onclick = () => {
+            $('confirm-dialog').close();
+            state.confirmAction = null
         };
-        $('login-dialog').addEventListener('cancel', e => e.preventDefault());
-        $('login-form').onsubmit = async e => {
-            e.preventDefault();
-            const button = e.submitter;
+        $('confirm-ok').onclick = () => {
+            const action = state.confirmAction;
+            state.confirmAction = null;
+            $('confirm-dialog').close();
+            if (action) action()
+        };
+        $('confirm-dialog').addEventListener('close', () => state.confirmAction = null);
+        $('login-dialog').addEventListener('cancel', event => event.preventDefault());
+        $('login-form').onsubmit = async event => {
+            event.preventDefault();
+            const button = event.submitter;
             button.disabled = true;
             try {
                 await api('/api/auth/login', {
@@ -1957,8 +2351,8 @@ body { font-size: 14px; }
                     body: JSON.stringify({token: $('access-token').value})
                 });
                 $('access-token').value = '';
-                $('login-dialog').close();
                 $('login-error').textContent = '';
+                $('login-dialog').close();
                 await bootData()
             } catch (error) {
                 $('login-error').textContent = error.message
@@ -1966,12 +2360,19 @@ body { font-size: 14px; }
                 button.disabled = false
             }
         };
-        suggestions();
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeSidebar()
+        });
+
+        quickQuestions();
         (async () => {
             try {
                 const auth = await api('/api/auth/status');
                 if (auth.remote_disabled) {
-                    toast('此服务仅允许本机访问，远程使用需要管理员设置访问口令');
+                    setBanner('当前服务仅允许本机访问；远程使用需要管理员设置访问口令。');
+                    $('input').placeholder = '当前仅允许本机访问';
+                    $('btn-send').disabled = true;
+                    toast('当前仅允许本机访问');
                     return
                 }
                 if (auth.required && !auth.authenticated) {
@@ -1979,11 +2380,12 @@ body { font-size: 14px; }
                     return
                 }
                 await bootData()
-            } catch (e) {
-                toast(e.message);
+            } catch (error) {
+                toast(error.message);
                 health()
             }
         })();
-    })();</script>
+    })();
+</script>
 </body>
 </html>

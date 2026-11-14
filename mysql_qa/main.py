@@ -13,10 +13,11 @@ class FAQSystem:
 
     def query(self, query):
         try:
-            answer = self.bm25.search(query)
-            if not answer:
+            match = self.bm25.search(query)
+            if not match:
                 self.logger.info("FAQ 未找到匹配答案")
-            return answer
+                return None
+            return match['answer'] if isinstance(match, dict) else match
         except Exception as e:
             self.logger.error(f"查询处理失败：{e}")
             return None

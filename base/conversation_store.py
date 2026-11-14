@@ -51,7 +51,7 @@ class ConversationStore:
                         subject or ''))
 
     def history(self, session_id, limit=200, subject=None):
-        # 网页读取完整会话；模型上下文在指定学科时只读取同学科记录。
+        # 网页读取完整会话；模型上下文在指定分类时只读取同分类记录。
         clause = ' AND subject=?' if subject else ''
         parameters = (session_id, subject, max(1, min(int(limit), 500))) if subject else (
             session_id, max(1, min(int(limit), 500)))

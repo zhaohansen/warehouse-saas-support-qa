@@ -27,6 +27,15 @@ class Config:
     milvus_port = parser.getint("milvus", "port")
     milvus_database = parser.get("milvus", "database")
     milvus_collection = parser.get("milvus", "collection")
+    # 可选：显式连接串。留空时使用 http://host:port 连接 Milvus 服务；
+    # 填本地文件路径（如 ./storage/milvus_lite.db）时使用 Milvus Lite，便于无 Docker 演示。
+    # 注意：pymilvus 也会读取环境变量 MILVUS_URI 且只接受服务地址，
+    # 因此 Milvus Lite 文件路径请用 QA_MILVUS_URI，避免与 pymilvus 的同名变量冲突。
+    qa_milvus_uri = os.getenv("QA_MILVUS_URI", "").strip()
+    server_uri = os.getenv("MILVUS_URI", "").strip()
+    if server_uri and not server_uri.startswith(("http://", "https://", "tcp://")):
+        server_uri = ""
+    milvus_uri = qa_milvus_uri or server_uri or parser.get("milvus", "uri", fallback="").strip()
     embedding_model_path = parser.get("embedding", "model_path")
     embedding_device = parser.get("embedding", "device")
     embedding_use_fp16 = parser.getboolean("embedding", "use_fp16")
@@ -63,7 +72,9 @@ class Config:
         raise ValueError("faq_threshold 必须在 0 到 1 之间")
     DATA_DIR = str((PROJECT_ROOT / data_dir).resolve())
     MODELS_DIR = str((PROJECT_ROOT / "rag_qa" / "models").resolve())
-    HISTORY_PATH = str(PROJECT_ROOT / "storage" / "history.sqlite3")
+    # 可用 QA_HISTORY_PATH 指向独立会话库，便于隔离验证，避免读写正式历史记录。
+    HISTORY_PATH = os.getenv("QA_HISTORY_PATH", "").strip() or str(
+        PROJECT_ROOT / "storage" / "enterprise_history.sqlite3")
     MAX_OUTPUT_TOKENS = parser.getint("llm", "max_output_tokens", fallback=4096)
     MAX_CONTEXT_CHARS = parser.getint("retrieval", "max_context_chars", fallback=12000)
     MAX_HISTORY_CHARS = parser.getint("app", "max_history_chars", fallback=12000)
@@ -71,6 +82,7 @@ class Config:
     MILVUS_PORT = milvus_port
     MILVUS_DATABASE_NAME = milvus_database
     MILVUS_COLLECTION_NAME = milvus_collection
+    MILVUS_URI = milvus_uri
     PARENT_CHUNK_SIZE = parent_chunk_size
     CHILD_CHUNK_SIZE = child_chunk_size
     CHUNK_OVERLAP = chunk_overlap
@@ -82,6 +94,7 @@ class Config:
     SPARSE_WEIGHT = sparse_weight
     NPROBE = nprobe
     MIN_SCORE = min_score
+    MIN_ANSWER_SCORE = parser.getfloat("retrieval", "min_answer_score", fallback=0.35)
     EMBEDDING_MODEL_PATH = embedding_model_path
     EMBEDDING_DEVICE = embedding_device
     EMBEDDING_USE_FP16 = embedding_use_fp16
@@ -100,11 +113,13 @@ def _validate_config():
         raise ValueError('chunk_overlap 必须大于等于 0 且小于父块、子块长度')
     if not 0 <= Config.MIN_SCORE <= 1:
         raise ValueError('min_score 必须在 0 到 1 之间')
+    if not 0 <= Config.MIN_ANSWER_SCORE <= 1:
+        raise ValueError('min_answer_score 必须在 0 到 1 之间')
     if Config.DENSE_WEIGHT < 0 or Config.SPARSE_WEIGHT < 0 or (
             Config.DENSE_WEIGHT + Config.SPARSE_WEIGHT <= 0):
         raise ValueError('检索权重不能为负，且不能同时为 0')
     if not Config.VALID_SOURCES:
-        raise ValueError('valid_sources 至少配置一个学科')
+        raise ValueError('valid_sources 至少配置一个资料分类')
 
 
 _validate_config()

@@ -28,7 +28,7 @@ def main(query_mode=True, directory_path=None):
 
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description='学科知识问答：建库或交互提问')
+    parser=argparse.ArgumentParser(description='企业知识库问答：建库或交互提问')
     parser.add_argument('--data-processing',action='store_true')
     parser.add_argument('--data-dir')
     args=parser.parse_args()
