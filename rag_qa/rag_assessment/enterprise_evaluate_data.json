@@ -1,0 +1,164 @@
+[
+  {
+    "question": "员工请假需要提交哪些信息？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "需要在内部系统提交请假类型、起止时间和工作交接说明；病假还需附医疗机构证明。",
+    "expected_source": ["虚构演示-请假与报销规范.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "报销由谁审核？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "直属负责人审核业务真实性，财务部门复核票据与金额。",
+    "expected_source": ["虚构演示-请假与报销规范.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "差旅申请应该在什么时候提交？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "应在出发前提交差旅申请；未提前申请的，需在出发当天补交并说明原因。",
+    "expected_source": ["虚构演示-请假与报销规范.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "协作平台包含哪些功能模块？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "包含任务管理、团队文档、消息通知和日程会议四个模块。",
+    "expected_source": ["虚构演示-协作平台产品手册.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "P1 紧急工单的响应时限是多少？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "10 分钟内响应，2 小时内给出临时方案。",
+    "expected_source": ["虚构演示-客户反馈处理流程.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "新员工入职第一天几点、到哪里报到？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "入职当天 9:30 前到行政部门前台报到，并出示身份证和录用通知。",
+    "expected_source": ["虚构演示-新员工入职指南.txt"],
+    "category": "直接事实",
+    "expected_insufficient": false
+  },
+  {
+    "question": "客户反馈工单从登记到关闭的步骤顺序是什么？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "反馈登记 → 工单分级 → 转交业务负责人 → 处理人跟进 → 客户确认 → 关闭工单。",
+    "expected_source": ["虚构演示-客户反馈处理流程.txt"],
+    "category": "流程顺序",
+    "expected_insufficient": false
+  },
+  {
+    "question": "新员工领取办公设备的流程顺序是什么？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "向行政部门提交设备申请 → 行政专员核对 → IT 部门配置设备和资产登记 → 与员工当面确认并签字。",
+    "expected_source": ["虚构演示-新员工入职指南.txt"],
+    "category": "流程顺序",
+    "expected_insufficient": false
+  },
+  {
+    "question": "报销的审批流程顺序是什么？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "员工提交 → 直属负责人审核业务真实性 → 财务部门复核票据与金额 → 财务安排付款。",
+    "expected_source": ["虚构演示-请假与报销规范.txt"],
+    "category": "流程顺序",
+    "expected_insufficient": false
+  },
+  {
+    "question": "新员工入职当天需要办理哪些与账号相关的事项？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "IT 部门在入职当天创建公司邮箱；协作平台由直属负责人提交账号申请、IT 部门开通；内部系统权限由直属负责人按岗位发起申请。",
+    "expected_source": ["虚构演示-新员工入职指南.txt", "虚构演示-协作平台产品手册.txt"],
+    "category": "跨文档",
+    "expected_insufficient": false
+  },
+  {
+    "question": "协作平台账号超过 1 个工作日未收到激活邮件，应该找谁？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "联系 IT 服务台核实邮箱地址并重新发送激活邮件。",
+    "expected_source": ["虚构演示-协作平台产品手册.txt", "虚构演示-新员工入职指南.txt"],
+    "category": "跨文档",
+    "expected_insufficient": false
+  },
+  {
+    "question": "无法登录协作平台时，产品手册和入职指南分别要求怎么做？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "两份资料都指向 IT 服务台：产品手册要求提供姓名、工号、部门和错误提示截图；入职指南把登录故障列为联系 IT 服务台的事项。",
+    "expected_source": ["虚构演示-协作平台产品手册.txt", "虚构演示-新员工入职指南.txt"],
+    "category": "跨文档",
+    "expected_insufficient": false
+  },
+  {
+    "question": "协作平台登不进去，该找哪个部门？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "联系 IT 服务台处理；仍无法登录时提供姓名、工号、部门和错误提示截图。",
+    "expected_source": ["虚构演示-协作平台产品手册.txt"],
+    "category": "换一种问法",
+    "expected_insufficient": false
+  },
+  {
+    "question": "请假的申请材料和审批人分别是什么？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "申请材料包括请假类型、起止时间和工作交接说明，病假附医疗机构证明；审批人是直属负责人。",
+    "expected_source": ["虚构演示-请假与报销规范.txt"],
+    "category": "换一种问法",
+    "expected_insufficient": false
+  },
+  {
+    "question": "节日福利金额是多少？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "现有资料未提及节日福利金额，应说明资料不足，不猜测具体金额。",
+    "expected_source": [],
+    "category": "资料不足",
+    "expected_insufficient": true
+  },
+  {
+    "question": "协作平台支持单点登录（SSO）吗？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "现有资料未提及单点登录，应说明资料不足，不猜测支持或不支持。",
+    "expected_source": [],
+    "category": "资料不足",
+    "expected_insufficient": true
+  },
+  {
+    "question": "公司年假有几天？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "资料只提到年假属于请假类型，未说明天数，应说明资料不足。",
+    "expected_source": [],
+    "category": "资料不足",
+    "expected_insufficient": true
+  },
+  {
+    "question": "出差住宿标准每晚多少钱？",
+    "answer": "",
+    "context": [],
+    "ground_truth": "资料未提及住宿金额标准，应说明资料不足，不猜测具体金额。",
+    "expected_source": [],
+    "category": "资料不足",
+    "expected_insufficient": true
+  }
+]
