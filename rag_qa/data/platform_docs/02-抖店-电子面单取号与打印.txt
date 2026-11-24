@@ -1,0 +1,33 @@
+【文档元数据】
+文档标题：电子面单常见对接场景
+章节：电子面单 / 取号与打印
+产品：抖店开放平台
+平台：抖音电商
+适用版本：平台最新（文档更新时间 2025-07-10）
+文档类型：平台对接文档
+原文链接：https://op.jinritemai.com/docs/guide-docs/208/3307
+更新时间：2025-07-10
+授权状态：公开
+
+【正文】
+一、取号与打印的两个步骤
+1. 获取快递单号：调用 /logistics/newCreateOrder。
+2. 获取打印数据：调用 /logistics/waybillApply，入参的运单号必须是 /logistics/newCreateOrder 返回的运单号。
+
+二、常见场景
+1. 子母单：/logistics/newCreateOrder 入参 total_pack_count 字段，返回的母单在 track_no 字段，子单在 sub_waybill_codes 字段。
+2. 多店铺共享面单取号：/logistics/newCreateOrder 的 token 字段传开通电子面单店铺的 token，user_id 字段传订单所在店铺的 shopid，或传 -1。例如 A 店铺开通了电子面单，要用 B 店铺的订单取号，则 token 传 A 店铺的，user_id 传 B 店铺的 shopid 或 -1。
+3. 非抖店订单（三方单）取号：order_id 字段传非抖店订单号，order_channel 字段传 54，或按接口文档要求传值。
+4. 物流商产品类型：使用 product_type 字段。
+5. 物流商增值服务：使用 service_list 字段。
+6. 物流商标准模板：调用 /logistics/templateList 获取。
+
+三、面单异常排查顺序
+1. 确认异常发生在取号、打印还是物流回传阶段。
+2. 取号失败：检查店铺授权、电子面单开通状态、物流商编码、收件人密文信息、订单是否已在其他网点取号。
+3. 打印失败或打印数据为空：检查是否用取号返回的运单号调用 /logistics/waybillApply，以及打印组件是否正常。
+4. 多店铺场景：检查 token 与 user_id 是否配对，避免用错店铺的面单账号。
+5. 三方单场景：检查 order_channel 是否为 54 或符合接口要求。
+
+四、适用条件
+本文只适用于抖音电商（抖店）电子面单。拼多多、淘宝天猫、快手等平台的面单取号接口和字段不同，不能混用。

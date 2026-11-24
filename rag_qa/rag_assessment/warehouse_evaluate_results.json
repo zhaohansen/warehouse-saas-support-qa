@@ -1,0 +1,1056 @@
+{
+  "generated_at": "2026-11-14T19:33:31",
+  "project": "仓配 SaaS 实施与售后知识问答系统",
+  "scenario": "国内仓配 SaaS 企业的实施与售后支持",
+  "model": "deepseek-flash",
+  "collection": "warehouse_saas_kb_qa",
+  "backend": {
+    "backend": "milvus",
+    "collection": "warehouse_saas_kb_qa",
+    "hybrid_mode": "native"
+  },
+  "summary": {
+    "total": 18,
+    "passed": 18,
+    "normal_total": 13,
+    "normal_doc_hit_applicable": 13,
+    "normal_doc_hit_passed": 13,
+    "normal_version_applicable": 6,
+    "normal_version_passed": 6,
+    "normal_version_not_applicable": 7,
+    "normal_citation_applicable": 13,
+    "normal_citation_passed": 13,
+    "clarification_total": 3,
+    "clarification_passed": 3,
+    "insufficient_total": 2,
+    "insufficient_passed": 2
+  },
+  "records": [
+    {
+      "id": "E01",
+      "domain": "面单异常",
+      "question": "抖店电子面单取号失败，应该按什么顺序排查？",
+      "filters": {
+        "platform": "抖音电商"
+      },
+      "expected_docs": [
+        "电子面单常见对接场景"
+      ],
+      "expected_keywords": [
+        "取号",
+        "店铺授权",
+        "电子面单开通",
+        "物流商编码",
+        "运单号"
+      ],
+      "ground_truth": "先确认异常在取号、打印还是物流回传阶段。取号失败时检查店铺授权、电子面单开通状态、物流商编码、收件人密文信息，以及订单是否已在其他网点取号。该文档只适用于抖音电商（抖店），不能套用到拼多多、淘宝天猫或快手。",
+      "answer": "## 适用条件\n- 产品：抖店开放平台；平台：抖音电商；版本：平台最新（文档更新时间 2025-07-10）[1]。\n- 本文只适用于抖音电商（抖店）电子面单；拼多多、淘宝天猫、快手等平台的面单取号接口和字段不同，不能混用[1]。\n\n## 排查顺序\n1. 先确认异常发生在取号、打印还是物流回传阶段；确认属于取号失败后，再按取号环节排查[1]。\n2. 检查店铺授权是否有效，以及电子面单开通状态是否正常[1]。\n3. 检查物流商编码是否正确[1]。\n4. 检查收件人密文信息是否符合要求[1]。\n5. 检查该订单是否已在其他网点取号[1]。\n6. 多店铺共享面单场景：检查 `token` 与 `user_id` 是否配对；`token` 应传开通电子面单店铺的 token，`user_id` 传订单所在店铺的 shopid 或 -1，避免用错店铺的面单账号[1]。\n7. 三方单场景：检查 `order_channel` 是否为 54 或符合接口要求[1]。\n\n## 来源\n[1] 电子面单常见对接场景｜章节：电子面单 / 取号与打印｜产品：抖店开放平台｜平台：抖音电商｜版本：平台最新（文档更新时间 2025-07-10）｜原文链接：https://op.jinritemai.com/docs/guide-docs/208/3307",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单常见对接场景",
+          "subject": "platform_docs",
+          "section": "电子面单 / 取号与打印",
+          "product": "抖店开放平台",
+          "platform": "抖音电商",
+          "version": "平台最新（文档更新时间 2025-07-10）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://op.jinritemai.com/docs/guide-docs/208/3307"
+        },
+        {
+          "index": 2,
+          "title": "订单列表查询（/order/searchList）",
+          "subject": "platform_docs",
+          "section": "订单API / 订单列表查询",
+          "product": "抖店开放平台",
+          "platform": "抖音电商",
+          "version": "平台最新（接口文档更新时间 2026-08-31）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://op.jinritemai.com/docs/api-docs/15/384"
+        }
+      ],
+      "citation_count": 10,
+      "elapsed_seconds": 18.65,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "取号",
+          "店铺授权",
+          "电子面单开通",
+          "物流商编码"
+        ],
+        "keyword_ratio": 0.8,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E02",
+      "domain": "面单异常",
+      "question": "抖店打印面单时打印数据为空，先检查什么？",
+      "filters": {
+        "platform": "抖音电商"
+      },
+      "expected_docs": [
+        "电子面单常见对接场景"
+      ],
+      "expected_keywords": [
+        "/logistics/waybillApply",
+        "运单号",
+        "打印组件"
+      ],
+      "ground_truth": "打印数据为空时，先检查是否使用 /logistics/newCreateOrder 返回的运单号调用 /logistics/waybillApply，再检查打印组件是否正常。",
+      "answer": "**适用条件**  \n适用于抖店开放平台、抖音电商平台，版本为平台最新（文档更新时间 2025-07-10）；覆盖电子面单取号与打印场景中的“打印数据为空”排查。资料仅适用于抖音电商（抖店）电子面单，其他平台不能混用。[1]\n\n**排查顺序**  \n1. 先检查调用 `/logistics/waybillApply` 获取打印数据时，入参运单号是否为 `/logistics/newCreateOrder` 取号返回的运单号。[1]  \n2. 若运单号确认无误，再检查打印组件是否正常。[1]\n\n资料未覆盖打印组件异常后的进一步日志、错误码或组件配置排查项，需补充相应文档。\n\n**来源**  \n[1] 电子面单常见对接场景；章节：电子面单 / 取号与打印；产品：抖店开放平台；平台：抖音电商；版本：平台最新（文档更新时间 2025-07-10）；原文链接：https://op.jinritemai.com/docs/guide-docs/208/3307",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单常见对接场景",
+          "subject": "platform_docs",
+          "section": "电子面单 / 取号与打印",
+          "product": "抖店开放平台",
+          "platform": "抖音电商",
+          "version": "平台最新（文档更新时间 2025-07-10）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://op.jinritemai.com/docs/guide-docs/208/3307"
+        }
+      ],
+      "citation_count": 4,
+      "elapsed_seconds": 8.36,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "/logistics/waybillApply",
+          "运单号",
+          "打印组件"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E03",
+      "domain": "订单同步",
+      "question": "旺店通客户端 V2.4.4 及以下能使用 trade_push.php 创建原始订单接口吗？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "客户端 V2.4.4 及以下"
+      },
+      "expected_docs": [
+        "客户端 V2.4.4 及以下版本的接口限制（整理）"
+      ],
+      "expected_keywords": [
+        "V2.4.5.0",
+        "不能",
+        "升级"
+      ],
+      "ground_truth": "不能直接套用。trade_push.php 要求客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本，不能直接使用该接口文档的字段和调用方式，应优先建议升级到满足要求的版本。",
+      "answer": "适用条件：产品为旺店通ERP，平台为旺店通开放平台，版本为客户端 V2.4.4 及以下；资料覆盖 `trade_push.php` 适用版本初判，不覆盖客户实际接口清单或具体报错码 [1][2]。\n\n排查顺序：\n1. 先确认客户是客户端还是网页版，并确认完整版本号，不能只看“V2.4” [1]。\n2. 对照 `trade_push.php`（创建原始订单）适用版本：要求客户端 V2.4.5.0 及以上 [1][2]。\n3. 若确认是客户端 V2.4.4 及以下，则不满足该接口适用版本，不能直接套用该接口文档的字段和调用方式，结论为“版本不支持” [1]。\n4. 处理上优先建议升级到满足要求的版本，再按新接口方案排查；升级前不要用高版本接口文档指导客户改参数，以免误判为“接口不存在”“版本错误”“字段不生效”等问题 [1]。\n\n结论：旺店通客户端 V2.4.4 及以下不能使用 `trade_push.php` 创建原始订单接口 [1][2]。\n\n来源：\n- [1] 客户端 V2.4.4 及以下版本的接口限制（整理）— 章节：版本说明 / 低版本兼容性；版本：客户端 V2.4.4 及以下；原文链接：https://open.wangdian.cn/open/apidoc\n- [2] 旺店通开放平台接口适用版本对照（整理）— 章节：版本说明 / 接口适用版本；版本：多版本对照；原文链接：https://open.wangdian.cn/open/apidoc",
+      "sources": [
+        {
+          "index": 1,
+          "title": "客户端 V2.4.4 及以下版本的接口限制（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 低版本兼容性",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.4 及以下",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 2,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        }
+      ],
+      "citation_count": 11,
+      "elapsed_seconds": 14.75,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "V2.4.5.0",
+          "不能",
+          "升级"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E04",
+      "domain": "订单同步",
+      "question": "旺店通客户端 V2.4.5.0 使用创建原始订单接口，适用条件和调用建议是什么？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "客户端 V2.4.5.0"
+      },
+      "expected_docs": [
+        "trade_push.php（创建原始订单）"
+      ],
+      "expected_keywords": [
+        "自有平台",
+        "5 到 10 分钟",
+        "50 条"
+      ],
+      "ground_truth": "trade_push.php 适用于客户端 V2.4.5.0 及以上，仅支持推送自有平台店铺的订单；建议每 5 到 10 分钟集中推送一次，单次请求不超过 50 条订单。",
+      "answer": "## 适用条件\n- 产品/平台/版本：旺店通 ERP、旺店通开放平台、客户端 V2.4.5.0 及以上 [1]。\n- 场景：用于将销售订单推送给旺店通 ERP，也用于更新已推送成功的销售订单 [1]。\n- 店铺限制：仅支持推送自有平台店铺的订单，不适用于平台店铺订单的直接抓取 [1]。\n- 请求地址：测试环境为 `https://sandbox.wangdian.cn/openapi2/trade_push.php`，正式环境为 `https://api.wangdian.cn/openapi2/trade_push.php` [1]。\n- 公共参数：包括 `sid`、`appkey`、`timestamp`、`sign`；`timestamp` 为北京时间 1970-01-01 08:00:00 起至现在的总秒数，时区为 Asia/Shanghai [1]。接口页面写最大时间误差 5 分钟，公共错误码页面写 2 分钟内合法，两处官方说明不一致；现场按更严格的 2 分钟控制，并以实际返回错误码为准 [1]。\n\n## 调用建议\n1. 建议每间隔 5 到 10 分钟，将商城积累的订单集中推送 [1]。\n2. 每次请求包含的订单条数建议不超过 50 条；1 条订单由 `trade_list` 和 `order_list` 构成，超过 50 条应分多次请求 [1]。\n3. 已推送成功的销售订单，其订单状态、退款状态和订单信息变更处理较复杂，需按开放平台“订单变更处理办法”处理，不能简单重复推送后假定状态一定被更新 [1]。\n\n## 核对顺序\n1. 确认客户端版本不低于 V2.4.5.0，并确认店铺为自有平台店铺；不满足时该接口方案不适用 [1]。\n2. 核对测试/正式请求地址及 `sid`、`appkey`、`timestamp`、`sign`；时间戳按北京时间秒数处理，时间误差按 2 分钟控制，最终看接口返回的错误码和错误信息 [1]。\n3. 检查单次订单条数是否不超过 50 条、推送间隔是否按 5 到 10 分钟集中推送；超过 50 条应分批请求 [1]。\n4. 更新已推送订单时，确认是否按“订单变更处理办法”处理；不能仅重复推送就认定状态已更新 [1]。\n\n## 来源\n[1] trade_push.php（创建原始订单），章节：订单类 / 订单推送与更新；产品：旺店通ERP；平台：旺店通开放平台；版本：客户端 V2.4.5.0 及以上；原文链接：https://open.wangdian.cn/open/apidoc/doc?path=trade_push.php",
+      "sources": [
+        {
+          "index": 1,
+          "title": "trade_push.php（创建原始订单）",
+          "subject": "product_docs",
+          "section": "订单类 / 订单推送与更新",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=trade_push.php"
+        },
+        {
+          "index": 2,
+          "title": "api_goods_stock_change_query.php（查询库存同步）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=api_goods_stock_change_query.php"
+        },
+        {
+          "index": 3,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 4,
+          "title": "finance.settle.Logistics.search（电子面单号查询）",
+          "subject": "product_docs",
+          "section": "物流类 / 电子面单号查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V1.5.2.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/qjb/open/apidoc/doc?path=finance.settle.Logistics.search"
+        }
+      ],
+      "citation_count": 14,
+      "elapsed_seconds": 20.1,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "自有平台",
+          "5 到 10 分钟",
+          "50 条"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E05",
+      "domain": "库存差异",
+      "question": "旺店通库存同步查询接口要求哪个版本，查询和回写是什么关系？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "客户端 V2.4.5.0"
+      },
+      "expected_docs": [
+        "api_goods_stock_change_query.php（查询库存同步）"
+      ],
+      "expected_keywords": [
+        "V2.4.5.0",
+        "成对",
+        "回写"
+      ],
+      "ground_truth": "库存同步查询接口要求客户端 V2.4.5.0 及以上。查询同步库存必须与库存同步回写两个接口配合使用，才能完成一次完整的库存同步；只调用其中一个接口不会闭环。",
+      "answer": "**适用条件**\n- 所指“库存同步查询接口”为旺店通 ERP 的 `api_goods_stock_change_query.php`，平台为旺店通开放平台，要求客户端 **V2.4.5.0 及以上** [2]；版本对照同样列为 V2.4.5.0 及以上 [3]。\n- 资料明确该接口仅支持**自有平台店铺**；完成一次完整库存同步需“查询同步库存”与“库存同步回写”配合使用 [2]。其他店铺类型是否适用，资料未写明。\n\n**排查顺序**\n1. 核对客户端版本是否不低于 V2.4.5.0；低于该版本时，不能按该新接口方案排查，应先升级或改用网页版/其他可用接口 [2][3]。\n2. 确认店铺为自有平台店铺、授权正常，ERP 已开启“启用库存同步”并配置库存同步策略，且平台货品存在、SKU 映射正确 [2]。\n3. 确认查询与回写成对执行：查询接口取出待同步的库存变化，回写接口把同步结果写回 ERP；只调用其中一个接口，库存同步不会闭环 [1][2]。\n4. 确认回写状态以平台实际同步结果为准；平台未同步成功时不能回写“同步成功”，否则后续可能取不到该库存变化记录，导致 ERP 与平台库存长期不一致 [2]。\n5. 确认查询间隔为 3 到 5 分钟，并且必须在上一次回写完成后，再获取下一批待同步数据 [2]。\n\n**来源**\n- [1] 《sales.StockSync.calcStock（计算自有平台货品应该同步的库存）》，章节：库存类 / 库存同步回写；版本：客户端 V1.3.3.1 及以上；https://open.wangdian.cn/qjb/open/apidoc/doc?path=sales.StockSync.calcStock\n- [2] 《api_goods_stock_change_query.php（查询库存同步）》，章节：库存类 / 库存同步查询；版本：客户端 V2.4.5.0 及以上；https://open.wangdian.cn/open/apidoc/doc?path=api_goods_stock_change_query.php\n- [3] 《旺店通开放平台接口适用版本对照（整理）》，章节：版本说明 / 接口适用版本；版本：多版本对照；https://open.wangdian.cn/open/apidoc",
+      "sources": [
+        {
+          "index": 1,
+          "title": "sales.StockSync.calcStock（计算自有平台货品应该同步的库存）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步回写",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V1.3.3.1 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/qjb/open/apidoc/doc?path=sales.StockSync.calcStock"
+        },
+        {
+          "index": 2,
+          "title": "api_goods_stock_change_query.php（查询库存同步）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=api_goods_stock_change_query.php"
+        },
+        {
+          "index": 3,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 4,
+          "title": "finance.settle.Logistics.search（电子面单号查询）",
+          "subject": "product_docs",
+          "section": "物流类 / 电子面单号查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V1.5.2.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/qjb/open/apidoc/doc?path=finance.settle.Logistics.search"
+        }
+      ],
+      "citation_count": 13,
+      "elapsed_seconds": 51.82,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "V2.4.5.0",
+          "成对",
+          "回写"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E06",
+      "domain": "库存差异",
+      "question": "库存同步时平台没有同步成功却回写了成功，会有什么后果？",
+      "filters": {
+        "product": "旺店通ERP"
+      },
+      "expected_docs": [
+        "api_goods_stock_change_query.php（查询库存同步）"
+      ],
+      "expected_keywords": [
+        "长期不一致",
+        "无法再次获取",
+        "实际同步结果"
+      ],
+      "ground_truth": "如果平台库存没有同步成功却回写成功，后续可能无法再次获取该库存变化记录，表现为 ERP 与平台库存长期不一致。回写状态必须以平台实际同步结果为准，不能提前回写成功。",
+      "answer": "**适用条件**\n- 产品：旺店通ERP；平台：旺店通开放平台；库存同步查询接口要求客户端 V2.4.5.0 及以上[1]，库存同步回写接口要求客户端 V1.3.3.1 及以上[2]。\n- 资料覆盖场景：仅支持自有平台店铺；“查询同步库存”必须与“库存同步回写”配合使用，才能完成一次完整的库存同步[1][2]。\n\n**排查顺序**\n1. 先确认平台侧实际库存是否已经更新，判断平台同步是否真的成功[2]。\n2. 如果平台未更新却回写了“同步成功”，检查回写逻辑，确认是否把未成功的结果错误写成成功；这会使后续变化被错误标记为已处理[2]。\n3. 核对查询与回写是否成对执行，并确认回写状态是否如实反映平台实际同步结果；回写状态不能提前回写成功[1]。\n4. 后果是：平台未同步成功却回写成功后，后续可能无法再次获取到该库存变化记录，表现为 ERP 与平台库存长期不一致[1]。\n\n**来源**\n- [1] 《api_goods_stock_change_query.php（查询库存同步）》；章节：库存类 / 库存同步查询；产品：旺店通ERP；平台：旺店通开放平台；版本：客户端 V2.4.5.0 及以上；原文链接：https://open.wangdian.cn/open/apidoc/doc?path=api_goods_stock_change_query.php\n- [2] 《sales.StockSync.calcStock（计算自有平台货品应该同步的库存）》；章节：库存类 / 库存同步回写；产品：旺店通ERP；平台：旺店通开放平台；版本：客户端 V1.3.3.1 及以上；原文链接：https://open.wangdian.cn/qjb/open/apidoc/doc?path=sales.StockSync.calcStock",
+      "sources": [
+        {
+          "index": 1,
+          "title": "api_goods_stock_change_query.php（查询库存同步）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=api_goods_stock_change_query.php"
+        },
+        {
+          "index": 2,
+          "title": "sales.StockSync.calcStock（计算自有平台货品应该同步的库存）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步回写",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V1.3.3.1 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/qjb/open/apidoc/doc?path=sales.StockSync.calcStock"
+        },
+        {
+          "index": 3,
+          "title": "客户端 V2.4.4 及以下版本的接口限制（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 低版本兼容性",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.4 及以下",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        }
+      ],
+      "citation_count": 10,
+      "elapsed_seconds": 24.7,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "长期不一致",
+          "无法再次获取",
+          "实际同步结果"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E07",
+      "domain": "订单同步",
+      "question": "销售出库单查询接口支持淘宝和拼多多的订单吗？",
+      "filters": {
+        "product": "旺店通ERP"
+      },
+      "expected_docs": [
+        "stockout_order_query_trade.php（查询销售出库单）"
+      ],
+      "expected_keywords": [
+        "不返回",
+        "淘系",
+        "拼多多",
+        "奇门"
+      ],
+      "ground_truth": "不支持。该接口不返回淘系、拼多多及系统供销平台订单数据；淘系订单需要通过奇门协议获取，拼多多订单需要自行对接平台获取，不能据此判断订单丢失。",
+      "answer": "**结论：不支持。** 该接口不返回淘系、拼多多及系统供销平台订单数据 [1]。\n\n**适用条件**\n- 产品：旺店通ERP；平台：旺店通开放平台；版本：客户端 V2.4.6.6 及以上 [1]。\n- 该接口用于获取旺店通 ERP 销售订单的出库单信息 [1]。\n- 接口明确不返回淘系、拼多多及系统供销平台订单数据；淘系订单需通过奇门协议获取，拼多多订单需自行对接平台获取 [1]。\n\n**排查顺序**\n1. 确认订单所属平台是否在接口支持范围内。如果平台是淘系或拼多多，接口本来就不会返回数据，不能据此判断订单丢失 [1]。\n2. 确认应改用哪条数据获取路径：自有平台订单通过订单推送或查询接口获取，淘系订单通过奇门协议获取，拼多多订单通过平台开放接口获取 [1]。\n3. 如果订单不属于上述被排除的平台，继续核对查询时间跨度是否不超过 30 天（测试环境为 60 分钟）[1]。\n4. 核对 `status` 与 `is_by_modified` 的组合是否符合规则：`is_by_modified=0` 或不传时默认按发货时间增量获取；传入的 `status` 小于 95 时，按“修改时间”返回数据 [1]。\n5. 确认出库单在 ERP 中是否存在，以及是否因驳回后重新审核导致单号变化 [1]。\n\n**来源**\n- [1] stockout_order_query_trade.php（查询销售出库单），章节：订单类 / 销售出库单查询，产品：旺店通ERP，平台：旺店通开放平台，版本：客户端 V2.4.6.6 及以上，链接：https://open.wangdian.cn/open/apidoc/doc?path=stockout_order_query_trade.php",
+      "sources": [
+        {
+          "index": 1,
+          "title": "stockout_order_query_trade.php（查询销售出库单）",
+          "subject": "product_docs",
+          "section": "订单类 / 销售出库单查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.6.6 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=stockout_order_query_trade.php"
+        }
+      ],
+      "citation_count": 10,
+      "elapsed_seconds": 11.87,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "不返回",
+          "淘系",
+          "拼多多",
+          "奇门"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E08",
+      "domain": "面单异常",
+      "question": "拼多多电子面单接入前要完成哪些准备？",
+      "filters": {
+        "platform": "拼多多"
+      },
+      "expected_docs": [
+        "电子面单接入指南"
+      ],
+      "expected_keywords": [
+        "pdd.waybill.search",
+        "订购关系",
+        "发货地址",
+        "余额"
+      ],
+      "ground_truth": "先用 pdd.waybill.search 获取商家电子面单开通情况和账户余额；商家需在拼多多商家后台申请，经快递公司网点审核后开通并按线下约定充值。取号使用的发货地址必须与订购关系中的发货地址完全一致。",
+      "answer": "适用条件：产品为拼多多开放平台；平台为拼多多；版本为平台最新（文档更新时间 2021-09-19）；覆盖电子面单取号前准备场景[1]。\n\n准备/核对顺序：\n1. 使用 `pdd.waybill.search` 获取商家电子面单开通情况和账户余额，先确认商家是否已开通、账户余额情况[1]。\n2. 商家需在拼多多商家后台的电子面单页面申请，对应快递公司网点审核后开通，并按线下约定充值[1]。\n3. 取号时使用的发货地址必须与订购关系中的发货地址一致；逐项核对 `province`、`city`、`district`、`detail`、`town` 是否完全一致，没有的字段置空或不传，并注意空格和不可见字符[1]。\n\n资料未写明申请页面的具体操作路径、审核时效和充值金额规则，不能补充。\n\n来源：\n[1] 电子面单接入指南 — 章节：API调用场景 / 电子面单 / 接入指南；产品：拼多多开放平台；平台：拼多多；版本：平台最新（文档更新时间 2021-09-19）；原文链接：https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单接入指南",
+          "subject": "platform_docs",
+          "section": "API调用场景 / 电子面单 / 接入指南",
+          "product": "拼多多开放平台",
+          "platform": "拼多多",
+          "version": "平台最新（文档更新时间 2021-09-19）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E"
+        }
+      ],
+      "citation_count": 5,
+      "elapsed_seconds": 10.89,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "pdd.waybill.search",
+          "订购关系",
+          "发货地址",
+          "余额"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E09",
+      "domain": "库存差异",
+      "question": "网页版库存查询接口能查哪些库存数据，和客户端接口有什么区别？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "网页版"
+      },
+      "expected_docs": [
+        "stock_query.php（查询库存成本 可用库存数据）"
+      ],
+      "expected_keywords": [
+        "库存成本",
+        "可用库存",
+        "网页版",
+        "客户端"
+      ],
+      "ground_truth": "stock_query.php 用于查询旺店通 ERP 的库存成本和可用库存数据，适用版本为网页版。它与客户端版本的库存同步查询接口不是同一个接口，网页版用本接口，客户端用库存同步查询接口。",
+      "answer": "## 适用条件\n- 产品：旺店通 ERP；平台：旺店通开放平台；版本：网页版 [1][2]。\n- 可覆盖场景：查询库存成本和可用库存数据，定位库存差异及核对库存构成 [1]。\n- `stock_query.php` 的 `is_sales_num` 字段仅适用于 20261027 版本及以上；低版本不会返回销量信息 [1][2]。\n- 本资料未提供客户端库存同步查询接口的具体返回字段和查询条件，因此不能逐字段对比两个接口 [2]。\n\n## 排查顺序\n1. 先确认客户使用的是网页版还是客户端：网页版对应 `stock_query.php`，客户端对应库存同步查询接口，两者不是同一个接口 [1]。\n2. 网页版查询时，确认传入商家编码或时间范围中的至少一项；时间范围最大跨度为 30 天，且为闭区间；`spec_no_list` 批量查询上限为 200 条商家编码 [1]。\n3. 核对返回结果是否为目标仓库、目标 SKU，并分别查看库存量、可用库存、锁定量、已审核量、待审核量、采购在途量、调拨在途量、退货在途量、虚拟库存、是否残次品等字段，不要只比较一个字段 [1]。\n4. 检查 `modified`（ERP 更新时间），判断差异是否发生在查询时间窗口之外 [1]。\n5. 如果返回 `21000024`，该错误的提示为“未查询到任何货品，请检查商家编码（新）是否正确！”。此时应先检查并修正 `spec_no`，不要直接判断库存为 0 [1]。\n6. 如果查询网页版销量字段，确认版本是否为 20261027 及以上；低版本传入该字段不会返回昨日、近 7 日、近 15 日、近 30 日销量 [1][2]。\n7. 如果客户使用客户端库存同步查询接口，确认客户端版本是否为 V2.4.5.0 及以上；低于该版本时，不能按新接口方案排查，应先升级或改用网页版/其他可用接口 [2]。\n\n## 与客户端接口的区别\n- 网页版 `stock_query.php` 用于查询库存成本和可用库存数据，适用版本为网页版；它与客户端版本的库存同步查询接口不是同一个接口 [1]。\n- 客户端 `api_goods_stock_change_query.php`（查询库存同步）要求客户端 V2.4.5.0 及以上 [2]。\n- 资料不足：客户端库存同步查询接口的具体返回字段、查询条件和字段差异未在资料中列出，无法据此完成逐字段对比。\n\n## 来源\n- [1] 《stock_query.php（查询库存成本 可用库存数据）》；章节：版本说明 / 网页版库存查询；产品：旺店通ERP；平台：旺店通开放平台；版本：网页版；链接：https://open.wangdian.cn/Y/open/apidoc/doc?path=stock_query_Y\n- [2] 《旺店通开放平台接口适用版本对照（整理）》；章节：版本说明 / 接口适用版本；产品：旺店通ERP；平台：旺店通开放平台；版本：多版本对照；链接：https://open.wangdian.cn/open/apidoc",
+      "sources": [
+        {
+          "index": 1,
+          "title": "stock_query.php（查询库存成本 可用库存数据）",
+          "subject": "release_notes",
+          "section": "版本说明 / 网页版库存查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "网页版",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/Y/open/apidoc/doc?path=stock_query_Y"
+        },
+        {
+          "index": 2,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        }
+      ],
+      "citation_count": 18,
+      "elapsed_seconds": 28.13,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "库存成本",
+          "可用库存",
+          "网页版",
+          "客户端"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E10",
+      "domain": "订单同步",
+      "question": "订单一直同步不过来",
+      "filters": {},
+      "expected_clarification": true,
+      "expected_keywords": [
+        "平台",
+        "报错",
+        "错误码"
+      ],
+      "ground_truth": "缺少平台/店铺和报错原文或错误码，应先追问一个最具体的问题，不应直接给通用排查步骤。",
+      "answer": "请先确认一个信息：这条订单来自哪个平台/店铺，以及 ERP 里看到的报错原文或错误码是什么？",
+      "sources": [],
+      "citation_count": 0,
+      "elapsed_seconds": 0.01,
+      "checks": {
+        "doc_hit": null,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": null,
+        "clarification_pass": true,
+        "keyword_matches": [
+          "平台",
+          "报错",
+          "错误码"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E11",
+      "domain": "库存差异",
+      "question": "库存对不上",
+      "filters": {},
+      "expected_clarification": true,
+      "expected_keywords": [
+        "可用库存",
+        "锁定库存",
+        "在途"
+      ],
+      "ground_truth": "缺少差异类型，应先确认是可用库存、锁定库存还是在途库存。",
+      "answer": "请先确认差异属于哪一类：可用库存、锁定库存，还是在途库存？",
+      "sources": [],
+      "citation_count": 0,
+      "elapsed_seconds": 0.01,
+      "checks": {
+        "doc_hit": null,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": null,
+        "clarification_pass": true,
+        "keyword_matches": [
+          "可用库存",
+          "锁定库存",
+          "在途"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E12",
+      "domain": "面单异常",
+      "question": "拼多多电子面单取号返回错误码 E202 是什么意思？",
+      "filters": {
+        "platform": "拼多多"
+      },
+      "expected_insufficient": true,
+      "expected_keywords": [
+        "资料不足",
+        "E202"
+      ],
+      "ground_truth": "现有公开资料只列出拼多多电子面单的常见报错文案，没有 E202 的错误码对照，应明确说明资料不足，并指出还缺错误码对照文档或完整报错文案。",
+      "answer": "**适用条件**：资料仅覆盖拼多多电子面单接入场景，产品为拼多多开放平台，版本为平台最新（文档更新时间 2021-09-19）；不适用于抖音、淘宝天猫、快手等平台 [1]。\n\n**排查顺序**：资料不足，无法给出针对 E202 的排查步骤。资料中列出的常见报错均为报错文本，未包含错误码 E202 的含义或处理方式 [2]。请补充：返回 E202 的具体接口名及完整错误信息，或拼多多开放平台电子面单错误码文档。\n\n**来源**：\n- [1] 《电子面单接入指南》，章节：API调用场景 / 电子面单 / 接入指南，版本：平台最新（文档更新时间 2021-09-19），链接：https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E\n- [2] 《电子面单接入指南》，章节：API调用场景 / 电子面单 / 接入指南，版本：平台最新（文档更新时间 2021-09-19），链接：https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单接入指南",
+          "subject": "platform_docs",
+          "section": "API调用场景 / 电子面单 / 接入指南",
+          "product": "拼多多开放平台",
+          "platform": "拼多多",
+          "version": "平台最新（文档更新时间 2021-09-19）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E"
+        },
+        {
+          "index": 2,
+          "title": "电子面单接入指南",
+          "subject": "platform_docs",
+          "section": "API调用场景 / 电子面单 / 接入指南",
+          "product": "拼多多开放平台",
+          "platform": "拼多多",
+          "version": "平台最新（文档更新时间 2021-09-19）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E"
+        }
+      ],
+      "citation_count": 4,
+      "elapsed_seconds": 9.64,
+      "checks": {
+        "doc_hit": null,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": null,
+        "insufficient_status": "passed",
+        "insufficient_reason": "明确说明资料不足且未给出无依据的具体结论",
+        "keyword_matches": [
+          "资料不足",
+          "E202"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E13",
+      "domain": "订单同步",
+      "question": "旺店通客户端 V2.4.6.6 能使用 trade_push.php 创建原始订单接口吗？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "客户端 V2.4.6.6"
+      },
+      "expected_docs": [
+        "trade_push.php（创建原始订单）"
+      ],
+      "expected_keywords": [
+        "V2.4.5.0",
+        "自有平台"
+      ],
+      "ground_truth": "可以使用。trade_push.php 要求客户端 V2.4.5.0 及以上，V2.4.6.6 高于最低要求；但仍只支持推送自有平台店铺订单。",
+      "answer": "**适用条件**\n- 产品/平台：旺店通ERP、旺店通开放平台；`trade_push.php` 适用于客户端 V2.4.5.0 及以上 [1][2]。\n- 因此，客户端 **V2.4.6.6** 在版本条件上满足使用 `trade_push.php` [1][2]。\n- 场景限制：该接口仅支持推送自有平台店铺订单，不适用于平台店铺订单的直接抓取 [2]。具体字段和限制仍以接口原文为准 [1]。\n\n**排查顺序**\n1. 核对版本：确认客户端为 V2.4.6.6；对照要求 V2.4.5.0 及以上，判断为版本满足 [1][2]。\n2. 核对店铺平台类型：在客户端“设置-基本设置-店铺”确认店铺是否为自有平台；若不是，接口会提示“店铺平台不是自有平台”，不能按可用处理 [2]。\n3. 若实际调用失败，再以接口返回的错误码和错误信息为准，核对店铺编号、授权、`sid/appkey/sign/时间戳`、单次推送条数与调用频率等 [2]。\n\n**来源**\n- [1] 旺店通开放平台接口适用版本对照（整理）；章节：版本说明 / 接口适用版本；版本：多版本对照；https://open.wangdian.cn/open/apidoc\n- [2] trade_push.php（创建原始订单）；章节：订单类 / 订单推送与更新；版本：客户端 V2.4.5.0 及以上；https://open.wangdian.cn/open/apidoc/doc?path=trade_push.php",
+      "sources": [
+        {
+          "index": 1,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 2,
+          "title": "trade_push.php（创建原始订单）",
+          "subject": "product_docs",
+          "section": "订单类 / 订单推送与更新",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=trade_push.php"
+        },
+        {
+          "index": 3,
+          "title": "stockout_order_query_trade.php（查询销售出库单）",
+          "subject": "product_docs",
+          "section": "订单类 / 销售出库单查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.6.6 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=stockout_order_query_trade.php"
+        }
+      ],
+      "citation_count": 12,
+      "elapsed_seconds": 14.19,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "V2.4.5.0",
+          "自有平台"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E14",
+      "domain": "库存差异",
+      "question": "旺店通客户端 V2.4.4 及以下能使用库存同步查询接口吗？",
+      "filters": {
+        "product": "旺店通ERP",
+        "version": "客户端 V2.4.4 及以下"
+      },
+      "expected_docs": [
+        "客户端 V2.4.4 及以下版本的接口限制（整理）"
+      ],
+      "expected_keywords": [
+        "V2.4.5.0",
+        "不能",
+        "升级"
+      ],
+      "ground_truth": "不能。库存同步查询接口要求客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本；应先确认完整版本号，并优先建议升级。",
+      "answer": "**适用条件**：旺店通ERP、旺店通开放平台、客户端 V2.4.4 及以下；资料仅覆盖库存同步查询接口 `api_goods_stock_change_query.php` 的版本兼容判断，不覆盖其他产品形态或接口 [1][3]。\n\n**排查顺序**：\n1. 先确认客户是客户端还是网页版，并取完整版本号，不能只看“V2.4” [1]。\n2. 对照接口适用版本：查询库存同步接口 `api_goods_stock_change_query.php` 要求客户端 V2.4.5.0 及以上 [1][3]。\n3. 若完整版本确为客户端 V2.4.4 及以下，则判定“版本不支持”，不能使用该接口，也不能按“查询同步库存 + 库存同步回写”的新方案处理库存同步问题 [1]。\n4. 处理上优先建议升级到满足要求的版本，再按新接口方案排查；升级前不要用高版本接口文档指导客户改参数 [1]。\n\n**结论**：客户端 V2.4.4 及以下不满足库存同步查询接口的适用版本，不能使用该接口 [1][3]。\n\n**来源**：\n[1] 客户端 V2.4.4 及以下版本的接口限制（整理）；章节：版本说明 / 低版本兼容性；版本：客户端 V2.4.4 及以下；https://open.wangdian.cn/open/apidoc  \n[3] 旺店通开放平台接口适用版本对照（整理）；章节：版本说明 / 接口适用版本；版本：多版本对照；https://open.wangdian.cn/open/apidoc",
+      "sources": [
+        {
+          "index": 1,
+          "title": "客户端 V2.4.4 及以下版本的接口限制（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 低版本兼容性",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.4 及以下",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 2,
+          "title": "sales.StockSync.calcStock（计算自有平台货品应该同步的库存）",
+          "subject": "product_docs",
+          "section": "库存类 / 库存同步回写",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V1.3.3.1 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/qjb/open/apidoc/doc?path=sales.StockSync.calcStock"
+        },
+        {
+          "index": 3,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        }
+      ],
+      "citation_count": 11,
+      "elapsed_seconds": 15.18,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": true,
+        "version_filter_pass": true,
+        "citation_pass": true,
+        "keyword_matches": [
+          "V2.4.5.0",
+          "不能",
+          "升级"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E15",
+      "domain": "面单异常",
+      "question": "抖店电子面单取号失败，能用拼多多的电子面单文档排查吗？",
+      "filters": {
+        "platform": "抖音电商"
+      },
+      "expected_docs": [
+        "电子面单常见对接场景"
+      ],
+      "expected_keywords": [
+        "不能",
+        "抖店",
+        "拼多多"
+      ],
+      "ground_truth": "不能直接套用。抖店和拼多多的电子面单接口、字段和开通流程不同，应按抖音电商平台的文档排查，不能把拼多多文档当作抖店的依据。",
+      "answer": "**适用条件**：仅适用于抖音电商（抖店）电子面单，版本为平台最新（文档更新时间 2025-07-10）；资料未写明具体 SaaS 产品版本[1]。拼多多等其他平台的面单取号接口和字段不同，不能混用[1]。\n\n**排查顺序**：\n1. 先判定平台：不能用拼多多电子面单文档排查抖店取号失败；抖店文档明确拼多多与抖店接口、字段不同，不能混用[1]。\n2. 要定位抖店取号失败，应先确认异常发生在取号、打印还是物流回传阶段；资料仅给出取号失败的检查项，未给出按错误码判断的标准[1]。\n3. 因此需补充一个关键信息：取号失败返回的具体错误码或报错原文是什么？\n\n**资料不足**：缺少取号失败的具体错误码或报错原文，无法依据资料判断具体失败原因；现有资料未提供按错误码分支的排查标准[1]。\n\n**来源**：\n- [1] 电子面单常见对接场景；章节：电子面单 / 取号与打印；产品：抖店开放平台；平台：抖音电商；版本：平台最新（文档更新时间 2025-07-10）；原文链接：https://op.jinritemai.com/docs/guide-docs/208/3307",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单常见对接场景",
+          "subject": "platform_docs",
+          "section": "电子面单 / 取号与打印",
+          "product": "抖店开放平台",
+          "platform": "抖音电商",
+          "version": "平台最新（文档更新时间 2025-07-10）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://op.jinritemai.com/docs/guide-docs/208/3307"
+        },
+        {
+          "index": 2,
+          "title": "订单列表查询（/order/searchList）",
+          "subject": "platform_docs",
+          "section": "订单API / 订单列表查询",
+          "product": "抖店开放平台",
+          "platform": "抖音电商",
+          "version": "平台最新（接口文档更新时间 2026-08-31）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://op.jinritemai.com/docs/api-docs/15/384"
+        }
+      ],
+      "citation_count": 6,
+      "elapsed_seconds": 11.63,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "不能",
+          "抖店",
+          "拼多多"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E16",
+      "domain": "订单同步",
+      "question": "旺店通所有客户端版本都支持 trade_push.php 创建原始订单接口，对吗？",
+      "filters": {
+        "product": "旺店通ERP"
+      },
+      "expected_docs": [
+        "客户端 V2.4.4 及以下版本的接口限制（整理）",
+        "trade_push.php（创建原始订单）"
+      ],
+      "expected_keywords": [
+        "V2.4.5.0",
+        "不是",
+        "及以上"
+      ],
+      "ground_truth": "这个前提不对。trade_push.php 只适用于客户端 V2.4.5.0 及以上，V2.4.4 及以下不满足适用版本，不能直接用高版本接口文档指导低版本客户。",
+      "answer": "## 适用条件\n- 产品/平台：旺店通 ERP，旺店通开放平台 [1][2]。\n- 版本范围：trade_push.php（创建原始订单）适用于**客户端 V2.4.5.0 及以上** [1][2]。\n- 资料覆盖范围：资料只覆盖客户端版本的适用性对照，没有说明网页版是否支持 trade_push.php；因此不能据此推断网页版情况 [1][2][3]。\n\n## 结论\n不对。trade_push.php 要求客户端 V2.4.5.0 及以上；客户端 V2.4.4 及以下不满足该接口的适用版本，不能直接套用该接口文档的字段和调用方式 [1][2][3]。\n\n## 确认顺序\n1. 确认客户的产品形态和完整版本号，即客户使用的是客户端还是网页版，以及完整版本号；不能只看“V2.4” [3]。\n2. 对照接口的适用版本：客户端 V2.4.5.0 及以上才支持 trade_push.php [1][2]。\n3. 若客户是客户端 V2.4.4 及以下，应把“版本不支持”作为结论，不要用高版本接口文档指导客户修改参数，否则容易误判为签名、参数或接口不存在 [3]。\n4. 若版本满足要求，再按接口返回的错误码和错误信息，排查店铺平台类型、店铺授权、sid/appkey/sign/时间戳、调用频率和单次推送条数 [2]。\n\n## 资料不足\n资料未写明网页版是否支持 trade_push.php；如需判断网页版，需补充该接口的官方原文或网页版接口清单。",
+      "sources": [
+        {
+          "index": 1,
+          "title": "旺店通开放平台接口适用版本对照（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 接口适用版本",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "多版本对照",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 2,
+          "title": "trade_push.php（创建原始订单）",
+          "subject": "product_docs",
+          "section": "订单类 / 订单推送与更新",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.5.0 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=trade_push.php"
+        },
+        {
+          "index": 3,
+          "title": "客户端 V2.4.4 及以下版本的接口限制（整理）",
+          "subject": "release_notes",
+          "section": "版本说明 / 低版本兼容性",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.4 及以下",
+          "doc_type": "版本说明",
+          "source_url": "https://open.wangdian.cn/open/apidoc"
+        },
+        {
+          "index": 4,
+          "title": "stockout_order_query_trade.php（查询销售出库单）",
+          "subject": "product_docs",
+          "section": "订单类 / 销售出库单查询",
+          "product": "旺店通ERP",
+          "platform": "旺店通开放平台",
+          "version": "客户端 V2.4.6.6 及以上",
+          "doc_type": "API 文档",
+          "source_url": "https://open.wangdian.cn/open/apidoc/doc?path=stockout_order_query_trade.php"
+        }
+      ],
+      "citation_count": 15,
+      "elapsed_seconds": 14.73,
+      "checks": {
+        "doc_hit": true,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": true,
+        "keyword_matches": [
+          "V2.4.5.0",
+          "及以上"
+        ],
+        "keyword_ratio": 0.667,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E17",
+      "domain": "面单异常",
+      "question": "快手电子面单取号返回错误码 K202 是什么原因？",
+      "filters": {},
+      "expected_insufficient": true,
+      "expected_keywords": [
+        "资料不足",
+        "K202"
+      ],
+      "ground_truth": "现有公开资料不覆盖快手电子面单，也没有 K202 的错误码对照，应说明资料不足，并指出还缺快手平台文档或完整报错文案。",
+      "answer": "**适用条件**\n- 现有资料仅适用于拼多多电子面单（拼多多开放平台，版本为平台最新，文档更新时间 2021-09-19）[1]。\n- 资料明确说明：抖音、淘宝天猫、快手等平台的面单取号接口、订购关系和字段不同，不能混用 [1]。因此，本文不能覆盖快手电子面单场景。\n\n**排查顺序**\n无法给出。当前资料未包含快手电子面单的接口文档或错误码定义，也没有 K202 的任何说明，属于“资料不足”。还缺的关键文档是：**快手电子面单的取号接口文档及错误码表（需包含 K202 的定义与触发条件）**；同时需确认该错误码是快手平台返回还是服务商/中间层返回。\n\n**来源**\n- [1] 电子面单接入指南 — 章节：API调用场景 / 电子面单 / 接入指南；产品：拼多多开放平台；平台：拼多多；版本：平台最新（文档更新时间 2021-09-19）；原文链接：https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E",
+      "sources": [
+        {
+          "index": 1,
+          "title": "电子面单接入指南",
+          "subject": "platform_docs",
+          "section": "API调用场景 / 电子面单 / 接入指南",
+          "product": "拼多多开放平台",
+          "platform": "拼多多",
+          "version": "平台最新（文档更新时间 2021-09-19）",
+          "doc_type": "平台对接文档",
+          "source_url": "https://open.pinduoduo.com/application/document/browse?idStr=C4CD7938F68B0C7E"
+        }
+      ],
+      "citation_count": 3,
+      "elapsed_seconds": 13.84,
+      "checks": {
+        "doc_hit": null,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": null,
+        "insufficient_status": "passed",
+        "insufficient_reason": "明确说明资料不足且未给出无依据的具体结论",
+        "keyword_matches": [
+          "资料不足",
+          "K202"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    },
+    {
+      "id": "E18",
+      "domain": "面单异常",
+      "question": "面单打不出来",
+      "filters": {},
+      "expected_clarification": true,
+      "expected_keywords": [
+        "平台",
+        "打印"
+      ],
+      "ground_truth": "缺少平台和异常阶段，应先确认是哪个平台的电子面单，以及卡在取号、打印还是物流回传。",
+      "answer": "请先确认平台和异常阶段：是抖音、拼多多还是淘宝天猫，卡在取号、打印还是物流回传？",
+      "sources": [],
+      "citation_count": 0,
+      "elapsed_seconds": 0.01,
+      "checks": {
+        "doc_hit": null,
+        "version_filter_applicable": false,
+        "version_filter_pass": null,
+        "citation_pass": null,
+        "clarification_pass": true,
+        "keyword_matches": [
+          "平台",
+          "打印"
+        ],
+        "keyword_ratio": 1.0,
+        "passed": true,
+        "failure_reasons": []
+      }
+    }
+  ]
+}
