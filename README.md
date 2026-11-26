@@ -144,7 +144,7 @@ python -m pytest tests -q
 node tests/test_upload_selection.js
 ```
 
-Python 单元测试 **128 项通过**（含 55 个子断言），覆盖版本尾部零等价与区间重叠（`test_version_scope.py`）、追问与多轮继承边界（`test_triage_clarification.py`）、评估器反例守卫（`test_warehouse_eval_guards.py`）及 FAQ 范围切换隔离（`test_faq_api_integration.py`）。
+Python 单元测试 **128 项通过，另含 55 个子断言（subtests）全部通过**，覆盖版本尾部零等价与区间重叠（`test_version_scope.py`）、追问与多轮继承边界（`test_triage_clarification.py`）、评估器反例守卫（`test_warehouse_eval_guards.py`）及 FAQ 范围切换隔离（`test_faq_api_integration.py`）。
 
 ---
 
